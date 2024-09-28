@@ -58,7 +58,7 @@
             position: absolute;
             bottom: 0.2rem;
             right: 0.6rem;
-            font-size: 0.7rem;
+            font-size: 0.5rem;
             color: #666666;
             white-space: nowrap;
         }
@@ -146,6 +146,26 @@
 
 <body>
     <div class="container">
+        <!-- Modal for missing fields -->
+        <div class="modal fade" id="missingFieldsModal" tabindex="-1" aria-labelledby="missingFieldsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="missingFieldsModalLabel">Missing Required Fields</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <ul id="missingFieldsList" class="list-group">
+                            <!-- Missing field names will be dynamically added here -->
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab navigation -->
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
@@ -378,69 +398,128 @@
                     specificButtonConfigs.push(config);
                 }
 
-                function generateInputsAndButtons() {
-                    specificButtonConfigs.forEach(config => {
-                        // Create a Bootstrap card or grouping box if groupLabel is specified
-                        const groupBox = $('<div>').addClass('card mb-3'); // Bootstrap card to represent the group box
+               function generateInputsAndButtons() {
+                  specificButtonConfigs.forEach(config => {
+                      // Create a Bootstrap card or grouping box if groupLabel is specified
+                      const groupBox = $('<div>').addClass('card mb-3'); // Bootstrap card to represent the group box
 
-                        if (config.groupLabel) {
-                            const cardHeader = $('<div>').addClass('card-header').text(config.groupLabel); // Add group label as card header
-                            groupBox.append(cardHeader);
-                        }
+                      if (config.groupLabel) {
+                          const cardHeader = $('<div>').addClass('card-header').text(config.groupLabel); // Add group label as card header
+                          groupBox.append(cardHeader);
+                      }
 
-                        const cardBody = $('<div>').addClass('card-body'); // Body for the content inside the card (inputs and buttons)
+                      const cardBody = $('<div>').addClass('card-body'); // Body for the content inside the card (inputs and buttons)
 
-                        config.args.forEach(arg => {
-                            const inputId = `input-${config.functionName}-${arg.label}`;
+                      config.args.forEach(arg => {
+                          const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`; // Replace spaces with dashes
 
-                            const input = $('<input>')
-                                .attr('type', arg.type)
-                                .addClass('form-control mb-2')
-                                .attr('placeholder', arg.label)
-                                .attr('id', inputId);
+                          const input = $('<input>')
+                              .attr('type', arg.type)
+                              .addClass('form-control mb-2')
+                              .attr('placeholder', arg.label)
+                              .attr('id', inputId);
 
-                            const formGroup = $('<div>').addClass('form-group').append(
-                                $('<label>').text(arg.label),
-                                input
-                            );
+                          const formGroup = $('<div>').addClass('form-group').append(
+                              $('<label>').attr('for', inputId).text(arg.label), // Added the 'for' attribute to label
+                              input
+                          );
 
-                            cardBody.append(formGroup);
+                          cardBody.append(formGroup);
 
-                            inputFieldMap[inputId] = input;
-                        });
+                          inputFieldMap[inputId] = input;
+                      });
 
-                        const button = $('<button>')
-                            .addClass('btn btn-primary btn-sm')
-                            .text(config.label || config.functionName)
-                            .attr('data-function', config.functionName)
-                            .click(handleButtonClick);
+                      const button = $('<button>')
+                          .addClass('btn btn-primary btn-sm')
+                          .text(config.label || config.functionName)
+                          .attr('data-function', config.functionName)
+                          .click(handleButtonClick);
 
-                        cardBody.append(button);
+                      cardBody.append(button);
+                      groupBox.append(cardBody);
+                      $('#inputContainer').append(groupBox);
 
-                        groupBox.append(cardBody);
-                        $('#inputContainer').append(groupBox);
-
-                        // Load user properties for this specific function
-                        loadConfigForFunction(config.functionName, config.args);
-                    });
-                }
+                      // Load user properties for this specific function
+                      loadConfigForFunction(config.functionName, config.args);
+                  });
+              }
 
 
                 function handleButtonClick(event) {
                     const button = $(event.currentTarget);
                     const functionName = button.attr('data-function');
-                    const inputs = specificButtonConfigs
-                        .find(config => config.functionName === functionName)
-                        .args.map(arg => $(`#input-${arg.label}`).val());
+                    const config = specificButtonConfigs.find(config => config.functionName === functionName);
+                    const missingFields = [];
+                    let firstMissingField = null;
 
-                    console.log(`Invoking ${functionName}(${JSON.stringify(inputs)})`);
+                    // Validate required fields
+                    config.args.forEach(arg => {
+                        const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                        const input = $(`#${inputId}`);  // Use the dynamically generated ID
+                        const label = $(`label[for="${inputId}"]`);
 
-                    // Invoke the function
+                        // Debugging: Ensure the input element exists
+                        if (!input.length) {
+                            console.error(`Input field for ${arg.label} not found!`);
+                            return;
+                        }
+
+                        console.log(`Checking field: ${arg.label}`);  // Log field being checked
+                        console.log(`Input value: ${input.val()}`);  // Log the actual input value
+
+                        // Check for required fields and specific handling for 'date' type fields
+                        if (arg.required && (!input.val() || (input[0].type === 'date' && input[0].value === ""))) {
+                            missingFields.push(arg.label);
+                            console.log(`${arg.label} is missing or invalid.`);  // Log missing/invalid fields
+
+                            // Highlight missing field label
+                            label.css('color', 'red');
+
+                            // Store the first missing field for scrolling
+                            if (!firstMissingField) {
+                                firstMissingField = input;
+                            }
+                        } else {
+                            console.log(`${arg.label} is filled correctly.`);  // Log valid fields
+                            // Reset label color if field is filled
+                            label.css('color', '');
+                        }
+                    });
+
+                    if (missingFields.length > 0) {
+                        console.log(`Missing fields: ${missingFields.join(', ')}`);  // Log all missing fields
+
+                        // Show modal with missing fields
+                        $('#missingFieldsList').empty();
+                        missingFields.forEach(field => {
+                            $('#missingFieldsList').append(`<li class="list-group-item">${field}</li>`);
+                        });
+                        $('#missingFieldsModal').modal('show');
+
+                        // Scroll to first missing field only if it exists
+                        if (firstMissingField && firstMissingField.length) {
+                            firstMissingField.focus();
+                            $('html, body').animate({
+                                scrollTop: firstMissingField.offset().top - 100
+                            }, 600);
+                        }
+
+                        return; // Prevent function call if fields are missing
+                    }
+
+                    // Invoke the function if all required fields are filled
+                    const inputs = config.args.map(arg => $(`#input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`).val());
+                    console.log(`Invoking ${functionName} with inputs:`, inputs);
+
+                    // Invoke the real user Server side function
                     server[functionName](...inputs);
 
                     // Save the user properties
                     saveUserPropertiesForFunction(functionName, inputs);
                 }
+
+
+
 
                 function saveUserPropertiesForFunction(functionName, inputs) {
                     const properties = {};
@@ -451,10 +530,11 @@
                         properties[`input-${functionName}-${argName}`] = inputValue;
                     });
 
-                    server.saveUserProperties(functionName, properties) ;
+                    server.saveUserProperties(functionName, properties);
                 }
 
                 function addToLogList(message, type = 'info', maxLines = 1000) {
+                    const MAX_MESSAGE_LENGTH = 100; // Define the maximum length for a log message
                     const now = new Date();
                     const timestamp = now.toISOString();
                     const currentSeconds = now.getSeconds();
@@ -465,11 +545,16 @@
                         lastLogTimestamp = currentSeconds;
                     }
 
+                    // Determine if the message needs to be truncated
+                    const isTruncated = message.length > MAX_MESSAGE_LENGTH;
+                    const displayMessage = isTruncated ? message.substring(0, MAX_MESSAGE_LENGTH) + '...' : message;
+
+                    // Construct the log message HTML
                     const listItem = `
                         <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
-                            <div class="log-message truncated">
-                                ${message}
-                                <span class="toggle-arrow"><i class="bi bi-chevron-right"></i></span>
+                            <div class="log-message ${isTruncated ? 'truncated' : ''}">
+                                ${displayMessage}
+                                ${isTruncated ? `<span class="toggle-arrow"><i class="bi bi-chevron-right"></i></span>` : ''}
                             </div>
                             ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
                         </li>
@@ -483,6 +568,7 @@
                         }
                     }
                 }
+
 
                 function bindEventHandlers() {
                     $('#clearLogBtn').click(() => $('#logList').empty());

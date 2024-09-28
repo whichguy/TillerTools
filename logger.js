@@ -237,6 +237,31 @@ function getConfigProperties() {
     return configArray;
 }
 
+function saveUserPropertiesForFunction(functionName, inputs) {
+    const properties = {};
+
+    inputs.forEach((inputValue, index) => {
+        const argName = specificButtonConfigs
+            .find(config => config.functionName === functionName)
+            .args[index].label;
+        properties[`input-${functionName}-${argName}`] = inputValue;
+    });
+
+    if (typeof server.saveUserProperties === 'function') {
+        // Proceed if the saveUserProperties function exists
+        server.saveUserProperties(functionName, properties)
+            .withSuccessHandler(() => {
+                console.log(`Properties for ${functionName} saved successfully.`);
+            })
+            .withFailureHandler(error => {
+                console.error(`Error saving properties for ${functionName}:`, error);
+            });
+    } else {
+        console.warn(`saveUserProperties is not a function on the server. Properties for ${functionName} will not be saved.`);
+    }
+}
+
+
 /**
  * Saves configuration properties sent from the client.
  *

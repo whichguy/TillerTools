@@ -379,46 +379,52 @@
                 }
 
                 function generateInputsAndButtons() {
-                  specificButtonConfigs.forEach(config => {
-                      // Create a grouping box around button and its arguments
-                      const groupBox = $('<div>').addClass('config-group mb-3');
-                      if (config.groupLabel) {
-                          groupBox.append($('<h6>').text(config.groupLabel));
-                      }
+                    specificButtonConfigs.forEach(config => {
+                        // Create a Bootstrap card or grouping box if groupLabel is specified
+                        const groupBox = $('<div>').addClass('card mb-3'); // Bootstrap card to represent the group box
 
-                      config.args.forEach(arg => {
-                          const inputId = `input-${config.functionName}-${arg.label}`;
+                        if (config.groupLabel) {
+                            const cardHeader = $('<div>').addClass('card-header').text(config.groupLabel); // Add group label as card header
+                            groupBox.append(cardHeader);
+                        }
 
-                          const input = $('<input>')
-                              .attr('type', arg.type)
-                              .addClass('form-control mb-2')
-                              .attr('placeholder', arg.label)
-                              .attr('id', inputId);
+                        const cardBody = $('<div>').addClass('card-body'); // Body for the content inside the card (inputs and buttons)
 
-                          const formGroup = $('<div>').addClass('form-group').append(
-                              $('<label>').text(arg.label),
-                              input
-                          );
+                        config.args.forEach(arg => {
+                            const inputId = `input-${config.functionName}-${arg.label}`;
 
-                          groupBox.append(formGroup);
+                            const input = $('<input>')
+                                .attr('type', arg.type)
+                                .addClass('form-control mb-2')
+                                .attr('placeholder', arg.label)
+                                .attr('id', inputId);
 
-                          inputFieldMap[inputId] = input;
-                      });
+                            const formGroup = $('<div>').addClass('form-group').append(
+                                $('<label>').text(arg.label),
+                                input
+                            );
 
-                      const button = $('<button>')
-                          .addClass('btn btn-primary btn-sm')
-                          .text(config.label || config.functionName)
-                          .attr('data-function', config.functionName)
-                          .click(handleButtonClick);
+                            cardBody.append(formGroup);
 
-                      groupBox.append(button);
+                            inputFieldMap[inputId] = input;
+                        });
 
-                      $('#inputContainer').append(groupBox);
+                        const button = $('<button>')
+                            .addClass('btn btn-primary btn-sm')
+                            .text(config.label || config.functionName)
+                            .attr('data-function', config.functionName)
+                            .click(handleButtonClick);
 
-                      // Load user properties for this specific function
-                      loadConfigForFunction(config.functionName, config.args);
-                  });
+                        cardBody.append(button);
+
+                        groupBox.append(cardBody);
+                        $('#inputContainer').append(groupBox);
+
+                        // Load user properties for this specific function
+                        loadConfigForFunction(config.functionName, config.args);
+                    });
                 }
+
 
                 function handleButtonClick(event) {
                     const button = $(event.currentTarget);

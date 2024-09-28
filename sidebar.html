@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons (for toggle arrows) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Container Styling */
+        .container {
+            padding: 1rem;
+            background-color: #ffffff; /* White background */
+            color: #333333; /* Dark gray text */
+        }
+
+        /* Tab Content Padding */
+        .tab-content {
+            margin-top: 1rem;
+        }
+
+        /* Expand All and Clear Buttons Container */
+        #expandAllContainer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        #expandAllContainer input {
+            margin-right: 5px;
+            transform: scale(0.8);
+        }
+
+        #expandAllContainer label {
+            font-size: 0.9em; 
+            color: #666666;
+        }
+
+        #clearLogBtn {
+            background-color: #e0e0e0; /* Light gray background */
+            color: #333333;
+            border: none;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        #clearLogBtn:hover {
+            background-color: #c9c9c9; /* Slightly darker gray on hover */
+        }
+
+        /* List Group Customization */
+        #logList {
+            padding: 0;
+            margin: 0;
+            list-style-type: none;
+        }
+
+        #logList li {
+            position: relative;
+            padding: 0.4rem 0.6rem;
+            padding-bottom: 1.2rem;
+            border: none;
+            border-bottom: 1px solid #e0e0e0; /* Light gray border */
+            background-color: #f9f9f9; /* Light gray background for log entries */
+        }
+
+        #logList li:last-child {
+            border-bottom: none;
+        }
+
+        /* Style for the timestamp */
+        .log-time {
+            position: absolute;
+            bottom: 0.2rem;
+            right: 0.6rem;
+            font-size: 0.7rem;
+            color: #666666;
+            white-space: nowrap;
+        }
+
+        /* Style for the message */
+        .log-message {
+            margin-bottom: 0.2rem;
+            text-align: left;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            color: #333333;
+            position: relative;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        /* Truncated state */
+        .truncated {
+            max-height: 3em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        /* Expanded state */
+        .expanded {
+            max-height: none;
+            white-space: normal;
+            overflow: visible;
+        }
+
+        /* Style for the toggle arrow */
+        .toggle-arrow {
+            position: absolute;
+            right: 0.6rem; /* Adjusted from 0 to 0.6rem for better spacing */
+            top: 0.2rem; /* Positioned at the top instead of 50% */
+            transform: none; /* Removed translateY to eliminate vertical centering */
+            font-size: 1em;
+            color: #1a73e8; /* Light blue toggle arrow */
+            cursor: pointer;
+            user-select: none;
+            margin-left: 10px;
+        }
+
+        .toggle-arrow:hover {
+            color: #0b66d4; /* Darker blue on hover */
+        }
+
+        /* Button Styling */
+        .btn {
+            margin-right: 0.4rem;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+            background-color: #1a73e8; /* Google blue */
+            color: white;
+            border: none;
+        }
+
+        .btn:hover {
+            background-color: #0b66d4; /* Darker blue on hover */
+        }
+
+        /* Hover effect for log entries */
+        #logList li:hover {
+            background-color: #e7f0fe; /* Light blue hover effect for log entries */
+        }
+
+        /* Config Content Styling */
+        .config-content {
+            background-color: #f9f9f9; /* Light gray background */
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+        }
+
+        .config-item {
+            margin-bottom: 1rem;
+        }
+
+        .config-item label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+        }
+
+        .config-item input, .config-item select, .config-item textarea {
+            width: 100%;
+            padding: 0.4rem;
+            font-size: 1rem;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
+        }
+
+        /* Responsive Truncated Height */
+        @media (max-width: 576px) {
+            .truncated {
+                max-height: 2em;
+            }
+        }
+
+        @media (min-width: 577px) {
+            .truncated {
+                max-height: 3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Tab navigation -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="messages-tab" data-bs-toggle="tab" href="#messages" role="tab" aria-controls="messages" aria-selected="true">Messages</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="config-tab" data-bs-toggle="tab" href="#config" role="tab" aria-controls="config" aria-selected="false">Config</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="another-tab" data-bs-toggle="tab" href="#another" role="tab" aria-controls="another" aria-selected="false">Another Tab</a>
+            </li>
+        </ul>
+
+        <!-- Tab content -->
+        <div class="tab-content">
+            <!-- Messages Tab -->
+            <div class="tab-pane fade show active" id="messages" role="tabpanel" aria-labelledby="messages-tab">
+                <div class="mb-2">
+                    <button id="startFunction" class="btn btn-primary btn-sm">Invoke Server Function</button>
+                    <button id="clearCache" class="btn btn-warning btn-sm">Clear Cache</button>
+                </div>
+
+                <div id="expandAllContainer">
+                    <div>
+                        <input type="checkbox" id="expandAll">
+                        <label for="expandAll">Expand All</label>
+                    </div>
+                    <button id="clearLogBtn">Clear</button>
+                </div>
+                
+                <ul id="logList" class="list-group"></ul>
+            </div>
+
+            <!-- Config Tab -->
+            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                <div id="configContent" class="config-content">
+                    <p>Loading configuration...</p>
+                    <!-- Configuration form will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <!-- Placeholder for Another Tab -->
+            <div class="tab-pane fade" id="another" role="tabpanel" aria-labelledby="another-tab">
+                <div class="config-content">
+                    <p>Future content can go here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Bootstrap 5 JS, Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.min.js"></script>
+    <script>
+
+        <?!= include("client"); ?>
+        
+        // Initialize the log server
+        const server = createLogServer( (mesg) => addToLogList(mesg) );
+
+        // Utility function to check if two dates are on the same day
+        function isSameDay(date1, date2) {
+            return date1.getFullYear() === date2.getFullYear() &&
+                   date1.getMonth() === date2.getMonth() &&
+                   date1.getDate() === date2.getDate();
+        }
+
+        // Function to format the timestamp based on whether it's today or not
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+
+            if (isSameDay(date, now)) {
+                // Return only time in HH:MM:SS format
+                return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+            } else {
+                // Return date and time in DD/MM/YYYY HH:MM:SS format
+                return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth()+1).padStart(2, '0')}/${date.getFullYear()} ` +
+                       `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+            }
+        }
+
+        let lastLogTimestamp = null; // Track the last timestamp
+
+        /**
+         * Adds a log entry to the log list with expandable functionality.
+         * 
+         * @param {string} message - The message to display.
+         * @param {string} type - The type of message (e.g., 'success', 'warning', 'danger').
+         * @param {number|null} [maxLines=1000] - The maximum number of log lines to retain. If null, retains all lines.
+         */
+        function addToLogList(message, type = 'info', maxLines = 1000) {
+            const now = new Date();
+            const timestamp = now.toISOString(); // Store full timestamp in ISO format
+            
+            // Extract the seconds part of the timestamp
+            const currentSeconds = now.getSeconds();
+            
+            // Conditionally include the time only if it's the first log or the second has changed
+            let formattedTime = '';
+            if (!lastLogTimestamp || lastLogTimestamp !== currentSeconds) {
+                formattedTime = formatTimestamp(timestamp);
+                lastLogTimestamp = currentSeconds; // Update the last logged timestamp
+            }
+
+            const listItem = `
+                <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
+                    <div class="log-message truncated">
+                        ${message}
+                        <span class="toggle-arrow"><i class="bi bi-chevron-right"></i></span>
+                    </div>
+                    ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
+                </li>
+            `;
+
+            // Add to the top of the list
+            $("#logList").prepend(listItem);
+
+            // Truncate list to maxLines items if maxLines is a number
+            if (typeof maxLines === 'number') {
+                while($("#logList li").length > maxLines) {
+                    $("#logList li:last-child").remove();
+                }
+            }
+        }
+
+        /**
+         * Creates an input element based on the property's data type.
+         * 
+         * @param {Object} property - The property object containing name, label, type, value, and options.
+         * @returns {string} - The HTML string for the input element.
+         */
+        function createInputElement(property) {
+            let inputHTML = '';
+            switch (property.type.toLowerCase()) {
+                case "date":
+                    inputHTML = `<input type="date" class="form-control" id="${property.name}" value="${property.value}">`;
+                    break;
+                case "number":
+                    inputHTML = `<input type="number" class="form-control" id="${property.name}" value="${property.value}">`;
+                    break;
+                case "select":
+                    // Assuming property.options is an array of options for select
+                    let optionsHTML = '';
+                    if (Array.isArray(property.options)) {
+                        property.options.forEach(function(option) {
+                            optionsHTML += `<option value="${option}" ${option === property.value ? 'selected' : ''}>${option}</option>`;
+                        });
+                    }
+                    inputHTML = `<select class="form-control" id="${property.name}">${optionsHTML}</select>`;
+                    break;
+                case "textarea":
+                    inputHTML = `<textarea class="form-control" id="${property.name}" rows="3">${property.value}</textarea>`;
+                    break;
+                case "text":
+                default:
+                    inputHTML = `<input type="text" class="form-control" id="${property.name}" value="${property.value}">`;
+                    break;
+            }
+            return inputHTML;
+        }
+
+        $(document).ready(function() {
+            // Initialize Midnight Timer
+            initializeMidnightTimer();
+
+            // Fetch and display config properties when Config tab is clicked
+            $("#config-tab").on("click", function() {
+                fetchConfigProperties();
+            });
+
+            // Clear logs when the Clear button is clicked
+            $("#clearLogBtn").click(function() {
+                $("#logList").empty(); // Clear all log entries
+            });
+
+            // Handle Expand All checkbox
+            $("#expandAll").change(function() {
+                if ($(this).is(":checked")) {
+                    // Expand all messages
+                    $("#logList .log-message.truncated").each(function() {
+                        $(this).removeClass('truncated').addClass('expanded');
+                        $(this).find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up'); // Change arrow direction
+                    });
+                } else {
+                    // Collapse all messages
+                    $("#logList .log-message.expanded").each(function() {
+                        $(this).removeClass('expanded').addClass('truncated');
+                        $(this).find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right'); // Change arrow direction
+                    });
+                }
+            });
+
+            // Event delegation for toggle arrows
+            $("#logList").on('click', '.toggle-arrow', function() {
+                const messageDiv = $(this).closest('.log-message');
+                const isTruncated = messageDiv.hasClass('truncated');
+
+                if (isTruncated) {
+                    messageDiv.removeClass('truncated').addClass('expanded');
+                    $(this).find('i').removeClass('bi-chevron-right').addClass('bi-chevron-up'); // Change arrow to up
+                } else {
+                    messageDiv.removeClass('expanded').addClass('truncated');
+                    $(this).find('i').removeClass('bi-chevron-up').addClass('bi-chevron-right'); // Change arrow to right
+                }
+
+                // Update Expand All checkbox state
+                updateExpandAllCheckbox();
+            });
+
+            // Event delegation for keyboard accessibility (optional)
+            $("#logList").on('keypress', '.toggle-arrow', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    $(this).click();
+                }
+            });
+
+            // Save Configurations button handler
+            $("#configContent").on('click', '#saveConfigBtn', function() {
+                const configData = [];
+                $(".config-item").each(function() {
+                    const input = $(this).find("input, select, textarea");
+                    const key = input.attr("id");
+                    const value = input.val();
+                    configData.push({ key: key, value: value });
+                });
+
+                // Send configData to the server to update properties
+                google.script.run.withSuccessHandler(function(response) {
+                    addToLogList(response, 'success');
+                }).withFailureHandler(function(err) {
+                    addToLogList(`Failed to save configurations: ${err.message}`, 'danger');
+                }).saveConfigProperties(configData);
+            });
+
+            // Reset Configurations button handler
+            $("#configContent").on('click', '#resetConfigBtn', function() {
+                // Simply re-fetch the configuration properties to reset the form inputs
+                fetchConfigProperties();
+                addToLogList("Configurations have been reset to the latest server-side values.", 'warning');
+            });
+
+            // Invoke Server Function button handler
+            $("#startFunction").click(function() {
+                server.longRunningFunction('arg1', 'arg2');
+            });
+
+            // Clear Cache button handler
+            $("#clearCache").click(function() {
+                google.script.run
+                    .withSuccessHandler(function(message) {
+                        addToLogList(message, 'success');
+                    })
+                    .withFailureHandler(function(err) {
+                        addToLogList(`Failed to clear cache: ${err.message}`, 'danger');
+                    })
+                    .clearCache();
+            });
+        });
+
+        /**
+         * Fetches and displays configuration properties from the server.
+         */
+        function fetchConfigProperties() {
+            google.script.run.withSuccessHandler(function(properties) {
+                const configContainer = $("#configContent");
+                configContainer.empty(); // Clear existing content
+
+                if (properties && properties.length > 0) {
+                    const form = $('<form></form>');
+
+                    properties.forEach(function(property) {
+                        const configItem = $("<div class='config-item row'></div>");
+                        const labelCol = $("<div class='col-sm-4'></div>");
+                        const inputCol = $("<div class='col-sm-8'></div>");
+
+                        labelCol.append(`<label for="${property.name}" class="form-label">${property.label}</label>`);
+                        inputCol.append(createInputElement(property));
+
+                        configItem.append(labelCol);
+                        configItem.append(inputCol);
+                        form.append(configItem);
+                    });
+
+                    // Add Save and Reset buttons
+                    const buttonRow = $("<div class='row'></div>");
+                    const buttonCol = $("<div class='col-sm-12 d-flex justify-content-end'></div>");
+                    buttonCol.append(`<button id='saveConfigBtn' type='button' class='btn btn-success btn-sm me-2'>Save Configurations</button>`);
+                    buttonCol.append(`<button id='resetConfigBtn' type='button' class='btn btn-secondary btn-sm'>Reset to Defaults</button>`);
+                    buttonRow.append(buttonCol);
+                    form.append(buttonRow);
+
+                    configContainer.append(form);
+                } else {
+                    configContainer.html("<p>No configuration properties found.</p>");
+                }
+            }).withFailureHandler(function(err) {
+                $("#configContent").html("<p>Error fetching properties: " + err.message + "</p>");
+            }).getConfigProperties(); // Server-side function
+        }
+
+        /**
+         * Updates the "Expand All" checkbox based on the state of individual messages.
+         */
+        function updateExpandAllCheckbox() {
+            const total = $("#logList .log-message").length;
+            const expanded = $("#logList .log-message.expanded").length;
+
+            if (expanded === total && total > 0) {
+                $("#expandAll").prop('checked', true).prop('indeterminate', false);
+            } else if (expanded === 0) {
+                $("#expandAll").prop('checked', false).prop('indeterminate', false);
+            } else {
+                $("#expandAll").prop('indeterminate', true);
+            }
+        }
+
+        /**
+         * Function to initialize a timer that updates timestamps at midnight.
+         */
+        function initializeMidnightTimer() {
+            const msUntilMidnight = getMillisecondsUntilMidnight();
+
+            setTimeout(function() {
+                // Update timestamps at midnight
+                updateAllTimestamps();
+
+                // Set interval to update timestamps every 24 hours thereafter
+                setInterval(updateAllTimestamps, 24 * 60 * 60 * 1000); // 24 hours in ms
+            }, msUntilMidnight);
+        }
+
+        /**
+         * Calculates milliseconds until next midnight.
+         * 
+         * @returns {number} - Milliseconds until next midnight.
+         */
+        function getMillisecondsUntilMidnight() {
+            const now = new Date();
+            const nextMidnight = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate() + 1, // Next day
+                0, 0, 0, 0 // At 00:00:00
+            );
+            return nextMidnight - now;
+        }
+
+        /**
+         * Updates all log timestamps.
+         */
+        function updateAllTimestamps() {
+            $("#logList li").each(function() {
+                const timestamp = $(this).attr('data-timestamp');
+                const formattedTime = formatTimestamp(timestamp);
+                $(this).find('.log-time').text(formattedTime);
+            });
+        }
+    </script>
+</body>
+</html>

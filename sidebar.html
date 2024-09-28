@@ -80,7 +80,7 @@
             position: relative;
             transition: all 0.3s ease;
             overflow: hidden;
-            cursor: pointer;
+            cursor: pointer; /* Indicates the entire message is clickable */
         }
 
         /* Truncated message styling */
@@ -705,9 +705,9 @@
                     // Construct the log message HTML with conditional chevron
                     const listItem = `
                         <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
-                            <div class="log-message ${isTruncated ? 'truncated' : ''}">
+                            <div class="log-message ${isTruncated ? 'truncated' : ''}" role="button" aria-expanded="${!isTruncated ? 'true' : 'false'}" tabindex="0">
                                 ${displayMessage}
-                                ${isTruncated ? `<span class="toggle-arrow" tabindex="0" role="button" aria-label="Expand message"><i class="bi bi-chevron-right"></i></span>` : ''}
+                                ${isTruncated ? `<span class="toggle-arrow" tabindex="-1" role="button" aria-label="Expand message"><i class="bi bi-chevron-right"></i></span>` : ''}
                             </div>
                             ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
                         </li>
@@ -738,42 +738,69 @@
                             if ($(this).is(":checked")) {
                                 $("#logList .log-message.truncated").each(function () {
                                     $(this).removeClass('truncated').addClass('expanded');
+                                    $(this).attr('aria-expanded', 'true');
                                     $(this).find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
                                 });
                             } else {
                                 $("#logList .log-message.expanded").each(function () {
                                     $(this).removeClass('expanded').addClass('truncated');
+                                    $(this).attr('aria-expanded', 'false');
                                     $(this).find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
                                 });
                             }
                         });
 
                         // Toggle arrow click handler for individual log messages
-                        $("#logList").on('click', '.toggle-arrow', function () {
-                            const messageDiv = $(this).closest('.log-message');
-                            const isTruncated = messageDiv.hasClass('truncated');
+                        $("#logList").on('click', '.toggle-arrow', function (e) {
+                            e.stopPropagation(); // Prevent triggering the parent .log-message click handler
+                            toggleLogMessage($(this).closest('.log-message'));
+                        });
 
-                            if (isTruncated) {
-                                messageDiv.removeClass('truncated').addClass('expanded');
-                                $(this).find('i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
-                            } else {
-                                messageDiv.removeClass('expanded').addClass('truncated');
-                                $(this).find('i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
+                        // Toggle entire log message click handler
+                        $("#logList").on('click', '.log-message', function () {
+                            toggleLogMessage($(this));
+                        });
+
+                        // Toggle log message using keyboard (Enter or Space)
+                        $("#logList").on('keypress', '.log-message', function (e) {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleLogMessage($(this));
                             }
-
-                            updateExpandAllCheckbox();
                         });
 
                         // Toggle arrow keyboard interaction for accessibility
                         $("#logList").on('keypress', '.toggle-arrow', function (e) {
                             if (e.key === 'Enter' || e.key === ' ') {
-                                $(this).click();
+                                e.preventDefault();
+                                toggleLogMessage($(this).closest('.log-message'));
                             }
                         });
                     } catch (error) {
                         console.error("Error binding event handlers:", error.message);
                         alert("An error occurred while binding event handlers. Please check the console for more details.");
                     }
+                }
+
+                /**
+                 * Toggles the expansion and collapse of a log message.
+                 *
+                 * @param {jQuery} messageDiv - The jQuery object representing the log message div.
+                 */
+                function toggleLogMessage(messageDiv) {
+                    const isTruncated = messageDiv.hasClass('truncated');
+
+                    if (isTruncated) {
+                        messageDiv.removeClass('truncated').addClass('expanded');
+                        messageDiv.attr('aria-expanded', 'true');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
+                    } else {
+                        messageDiv.removeClass('expanded').addClass('truncated');
+                        messageDiv.attr('aria-expanded', 'false');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
+                    }
+
+                    updateExpandAllCheckbox();
                 }
 
                 /**
@@ -872,6 +899,27 @@
                     } catch (error) {
                         console.error("Error updating 'Expand All' checkbox:", error.message);
                     }
+                }
+
+                /**
+                 * Toggles the expansion and collapse of a log message.
+                 *
+                 * @param {jQuery} messageDiv - The jQuery object representing the log message div.
+                 */
+                function toggleLogMessage(messageDiv) {
+                    const isTruncated = messageDiv.hasClass('truncated');
+
+                    if (isTruncated) {
+                        messageDiv.removeClass('truncated').addClass('expanded');
+                        messageDiv.attr('aria-expanded', 'true');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
+                    } else {
+                        messageDiv.removeClass('expanded').addClass('truncated');
+                        messageDiv.attr('aria-expanded', 'false');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
+                    }
+
+                    updateExpandAllCheckbox();
                 }
 
                 // Expose public methods

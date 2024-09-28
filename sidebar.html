@@ -255,13 +255,15 @@
 
                         const onSuccess = () => {
                             clearInterval(pollInterval);
-                            configInstance.log("Function completed successfully.");
+                            console.log(`${prop} completed successfully`);
+
                             doOneTimePoll(10, processId);
                         };
 
                         const onError = (err) => {
                             clearInterval(pollInterval);
-                            configInstance.error(err.message || 'An error occurred.');
+                            console.log( `Error: ${prop}: ${err.message}` || 'An error occurred.');
+
                             doOneTimePoll(10, processId);
                         };
 
@@ -276,6 +278,19 @@
             return new Proxy(target, handler);
         }
 
+        function updateInputsWithUserProperties(properties) {
+            if (typeof properties === 'string' && properties === 'No configuration found.') {
+                alert('No configuration found.');
+                return;
+            }
+
+            // Loop through the properties and set the values in the appropriate input fields
+            for (let key in properties) {
+                const inputId = key.split('_')[1]; // Assuming the format is functionName_arg1, functionName_arg2, etc.
+                $(`#input-${inputId}`).val(properties[key]);
+            }
+        }
+
         (function ($) {
             const LogInterface = (function () {
                 let server = null;
@@ -284,44 +299,125 @@
                 let lastLogTimestamp = null; // Declaring lastLogTimestamp here
 
                 function init() {
+                    // Initialize the log server
                     server = createLogServer((message) => addToLogList(message, 'info'));
+
+                    // Generate input fields and buttons
                     generateInputsAndButtons();
+
+                    // Bind event handlers for interaction
                     bindEventHandlers();
-                    initializeMidnightTimer(); // Ensure midnight updates
+
+                    // Initialize timestamp updates
+                    initializeMidnightTimer();
+
+                    // Call to load configuration
+                    loadAllConfigs();  // This is the new call to handle all configurations
+                }
+                async function loadAllConfigs() {
+                    try {
+                        // Iterate through each button configuration and load the properties for each function
+                        for (const config of specificButtonConfigs) {
+                            console.log(`Loading config for function: ${config.functionName}`);
+                            await loadConfigForFunction(config.functionName, config.args);  // Await the result for each function
+                        }
+                        console.log("Configuration load completed.");
+                    } catch (error) {
+                        console.error("Error loading configurations:", error.message);
+                        alert("An error occurred while loading configurations. Please check the console for more details.");
+                    }
+                }
+                async function loadConfigForFunction(functionName, args) {
+                    try {
+                        // Simulate an async call to the server to fetch user properties
+                        const properties = await server.getUserPropertiesForFunction(functionName);
+
+                        // Check if properties are found and are valid
+                        if (properties && typeof properties === 'object') {
+                            args.forEach(arg => {
+                                const inputId = `input-${functionName}-${arg.label}`;
+                                
+                                // Populate input fields with saved properties
+                                if (properties[inputId]) {
+                                    $(`#${inputId}`).val(properties[inputId]);
+                                }
+                            });
+                            return properties;  // Return the properties after successful population
+                        } else {
+                            console.log("No user properties found for function:", functionName);
+                            return null;  // Return null if no properties found
+                        }
+                    } catch (err) {
+                        // Catch and log any error that occurs
+                        console.error("Failed to load user properties for function:", functionName, err);
+                        throw new Error(`Error while loading configuration for function ${functionName}: ${err.message}`);
+                    }
                 }
 
+
+                // Function to update the config tab with properties
+                function updateConfigTab(properties) {
+                    if (typeof properties === 'string') {
+                        // If the server returns the message "No configuration found", display it
+                        $('#configContent').html(`<p style="color: red;">${properties}</p>`);
+                    } else {
+                        // Else populate the form with the user properties
+                        $('#configContent').empty(); // Clear the content
+                        for (let key in properties) {
+                            const inputId = key.split('_')[1];  // Assuming the format is functionName_arg1, functionName_arg2, etc.
+                            $('#configContent').append(`
+                                <div class="form-group">
+                                    <label for="input-${inputId}">${inputId}</label>
+                                    <input id="input-${inputId}" class="form-control" value="${properties[key]}">
+                                </div>
+                            `);
+                        }
+                    }
+                }
                 function addButtonConfig(config) {
                     specificButtonConfigs.push(config);
                 }
 
                 function generateInputsAndButtons() {
-                    specificButtonConfigs.forEach(config => {
-                        config.args.forEach(arg => {
-                            if (!inputFieldMap[arg.label]) {
-                                const input = $('<input>')
-                                    .attr('type', arg.type)
-                                    .addClass('form-control mb-2')
-                                    .attr('placeholder', arg.label)
-                                    .attr('id', `input-${arg.label}`);
+                  specificButtonConfigs.forEach(config => {
+                      // Create a grouping box around button and its arguments
+                      const groupBox = $('<div>').addClass('config-group mb-3');
+                      if (config.groupLabel) {
+                          groupBox.append($('<h6>').text(config.groupLabel));
+                      }
 
-                                $('#inputContainer').append(
-                                    $('<div>').addClass('form-group').append(
-                                        $('<label>').text(arg.label),
-                                        input
-                                    )
-                                );
-                                inputFieldMap[arg.label] = input;
-                            }
-                        });
+                      config.args.forEach(arg => {
+                          const inputId = `input-${config.functionName}-${arg.label}`;
 
-                        const button = $('<button>')
-                            .addClass('btn btn-primary btn-sm')
-                            .text(config.label || config.functionName)
-                            .attr('data-function', config.functionName)
-                            .click(handleButtonClick);
+                          const input = $('<input>')
+                              .attr('type', arg.type)
+                              .addClass('form-control mb-2')
+                              .attr('placeholder', arg.label)
+                              .attr('id', inputId);
 
-                        $('#buttonContainer').append(button);
-                    });
+                          const formGroup = $('<div>').addClass('form-group').append(
+                              $('<label>').text(arg.label),
+                              input
+                          );
+
+                          groupBox.append(formGroup);
+
+                          inputFieldMap[inputId] = input;
+                      });
+
+                      const button = $('<button>')
+                          .addClass('btn btn-primary btn-sm')
+                          .text(config.label || config.functionName)
+                          .attr('data-function', config.functionName)
+                          .click(handleButtonClick);
+
+                      groupBox.append(button);
+
+                      $('#inputContainer').append(groupBox);
+
+                      // Load user properties for this specific function
+                      loadConfigForFunction(config.functionName, config.args);
+                  });
                 }
 
                 function handleButtonClick(event) {
@@ -331,9 +427,25 @@
                         .find(config => config.functionName === functionName)
                         .args.map(arg => $(`#input-${arg.label}`).val());
 
-                    console.log( `Invoking ${functionName}(${JSON.stringify(inputs)})`) ;
+                    console.log(`Invoking ${functionName}(${JSON.stringify(inputs)})`);
 
+                    // Invoke the function
                     server[functionName](...inputs);
+
+                    // Save the user properties
+                    saveUserPropertiesForFunction(functionName, inputs);
+                }
+
+                function saveUserPropertiesForFunction(functionName, inputs) {
+                    const properties = {};
+                    inputs.forEach((inputValue, index) => {
+                        const argName = specificButtonConfigs
+                            .find(config => config.functionName === functionName)
+                            .args[index].label;
+                        properties[`input-${functionName}-${argName}`] = inputValue;
+                    });
+
+                    server.saveUserProperties(functionName, properties) ;
                 }
 
                 function addToLogList(message, type = 'info', maxLines = 1000) {
@@ -474,9 +586,10 @@
                 LogInterface.addButtonConfig({
                     label: 'Start Process',
                     functionName: 'longRunningFunction',
+                    groupLabel: 'Process Controls',
                     args: [
                         { label: 'Start Date', type: 'date' },
-                        { label: 'End Date', type: 'date' }
+                        { label: 'End Date', type: 'date', required: true }
                     ]
                 });
 

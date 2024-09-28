@@ -8,7 +8,7 @@ function invokeWithId(functionName, functionId, ...args)
 
   const functionIdAndName = functionName + "_" + functionId ;
 
-    const f = function(id, name) {
+    const f = function( _functionId, _functionName) {
         return this[functionName](...args);
     };
     
@@ -28,9 +28,61 @@ function invokeWithId(functionName, functionId, ...args)
     return result;
 }
 
+/**
+ * Stores input arguments in user properties with the function name as the prefix.
+ * @param {string} functionName - The name of the function.
+ * @param {Array} args - The list of arguments.
+ */
+function storeUserProperties(functionName, args) {
+  const userProperties = PropertiesService.getUserProperties();
+  args.forEach((value, index) => {
+    userProperties.setProperty(`${functionName}_arg${index + 1}`, value);
+  });
+  console.log(`Stored properties for ${functionName}:`, JSON.stringify(args));
+}
+
+/**
+ * Retrieves user properties for a specific function.
+ * @param {string} functionName - The name of the function.
+ * @returns {Object|string} - The properties for the function or a message if no properties found.
+ */
+function getUserPropertiesForFunction(functionName) {
+  const userProperties = PropertiesService.getUserProperties();
+  const allProps = userProperties.getProperties();
+  
+  const functionProps = {};
+  for (let key in allProps) {
+    if (key.startsWith(functionName)) {
+      functionProps[key] = allProps[key];
+    }
+  }
+
+  if (Object.keys(functionProps).length === 0) {
+    return "No configuration found.";
+  }
+  return functionProps;
+}
+
 function clearCache() {
   const cache = CacheService.getScriptCache();
   cache.removeAll();
+}
+
+function getUserPropertiesForFunction(functionName) {
+  const userProperties = PropertiesService.getUserProperties();
+  const allProps = userProperties.getProperties();
+  
+  const functionProps = {};
+  for (let key in allProps) {
+    if (key.startsWith(functionName)) {
+      functionProps[key] = allProps[key];
+    }
+  }
+
+  if (Object.keys(functionProps).length === 0) {
+    return "No configuration found.";
+  }
+  return functionProps;
 }
 
 function include(filename) 

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Receipts</title>
+    <base target="_top">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+
+    <style>
+      @keyframes flash {
+          0% {background-color: #e5f4ff;}  /* A very light blue */
+          100% {background-color: transparent;}
+      }
+
+      .flash-bg {
+          animation-name: flash;
+          animation-duration: 1s;
+      }
+
+      #logList a.collapsed {
+          text-decoration: none;
+          color: inherit;  /* Keeps the text color consistent */
+          cursor: default; /* This will remove the pointer hand, making it seem less like a typical hyperlink */
+      }
+
+      #logList a.collapsed:hover,
+      #logList a.collapsed:focus,
+      #logList a.collapsed:active,
+      #logList a.collapsed:visited {
+          text-decoration: none; 
+          color: inherit;
+      }
+
+      #logList .preview-content {
+          text-decoration: none;
+          color: inherit;
+          cursor: pointer;
+      }
+
+      #logList .preview-content:hover,
+      #logList .preview-content:focus,
+      #logList .preview-content:active,
+      #logList .preview-content:visited {
+          text-decoration: none;
+          color: inherit;
+      }
+
+
+      .timestamp-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+
+      .expand-badge {
+          top: 0; /* Reset the top value */
+          margin: 0; /* Reset margin */
+          border: 1px solid #ddd; 
+          color: #888; 
+          cursor: pointer; 
+      }
+
+      .expand-badge:hover {
+          background-color: #f7f7f7;
+          color: #666;
+      }
+
+      .timestamp {
+          font-size: 0.7rem; /* Adjust to your preference for a smaller font size */
+      }
+
+      .expansion-indicator {
+          margin-left: 5px; /* Add some space between the message and the indicator */
+      }
+      
+
+    </style>
+</head>
+<body class="bg-light py-5">
+
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
+    <div id="errorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Error</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <!-- Error message will be populated here -->
+        </div>
+    </div>
+</div>
+
+<div class="container">
+  <div class="mb-3 text-center">
+      <label for="emailFilterInput" class="form-label">Enter Email Address (TO or CC):</label>
+      <input type="email" class="form-control" id="emailFilterInput" placeholder="example@domain.com">
+  </div>
+
+  <div class="mb-3 text-center">
+      <label for="daysPriorInput" class="form-label">Number of Days Prior:</label>
+      <input type="number" class="form-control" id="daysPriorInput" min="1" max="365" value="7">
+  </div>
+
+  <div class="row justify-content-center">
+      <div class="col-md-8">
+          <div class="text-center mb-3">
+              <button id="receiptBtn" class="btn btn-outline-primary btn-lg">Find Receipts</button>
+          </div>
+          <div class="text-center mb-3"> <!-- Reduced from mb-5 to mb-3 -->
+              <!-- Spinner -->
+              <div id="loadingSpinner" style="display: none;">
+                  <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                  </div>
+              </div>
+                          
+              <!-- Status Icon -->
+              <i id="statusIcon" class="bi" style="font-size: 2rem;"></i>
+          </div>
+
+          <div class="card">
+              <div class="card-header text-primary">
+                  Messages
+              </div>
+              <ul id="logList" class="list-group list-group-flush">
+                  <!-- Logs will be appended here -->
+              </ul>
+          </div>
+      </div>
+  </div>
+</div>
+
+
+<script>
+
+  const handler = {
+
+    //
+    // Members
+    //
+    configInstance:       null,
+    defaultPollInterval:  1250,
+    queuedHandlers:       {
+                      successHandlers: [],
+                      failureHandlers: [],
+                      userObject: null
+                  },
+
+    // 
+    // Functions
+    //
+    doOneTimePoll(interval, processId ) 
+    {
+      console.log("doOneTimePoll called on %s , interval %s", processId, interval) ;
+
+      setTimeout(() => {
+          google.script.run
+              .withSuccessHandler(response => {
+                  this.configInstance.debug(`client received: [${processId}] ${JSON.stringify(response)}`);
+                  if (response.messages && response.messages.length > 0) {
+                      response.messages.forEach(msg => msg && this.configInstance.log(msg));
+                  }
+              })
+              .getProcessStatus(processId);
+      }, interval);
+    },
+
+    initialize(configInstance, defaultPollInterval = 1250) {
+
+        this.configInstance       = configInstance;
+        this.defaultPollInterval = defaultPollInterval;
+    },
+
+    onFailure(err, processId ) 
+    {
+ 
+      console.log(`Function failed for ${processId}` );
+
+      // Display the error in the toast
+      const errorMsg = err.message || `An error occurred with ${prop}`;
+      $('#errorToast .toast-body').text(
+          errorMsg.length > 120 ? errorMsg.substring(0, 120) + '...' : errorMsg
+      );
+
+      // Launch the toast
+      let toast = new bootstrap.Toast($('#errorToast')[0]);
+      toast.show();
+
+    },
+
+    // Success handler callback
+    onSuccess( processId )
+    {
+      console.log("Function completed successfully" );
+    },
+
+    get( target, prop, receiver ) {
+
+        // console.log( "proxy get called for %s", prop ) ;
+
+        // Check if the property exists on the handler first
+        if (prop in this) {
+          // Access it directly from the handler to avoid triggering the proxy again
+          return this[prop];
+        }
+        // Check if the method is one of the specified ones
+        else if (["withSuccessHandler", "withFailureHandler", "withUserObject"].includes(prop)) {
+            return (...args) => {
+                switch (prop) {
+                    case "withSuccessHandler":
+                        this.queuedHandlers.successHandlers.push( args[0] );
+                        break;
+                    case "withFailureHandler":
+                        this.queuedHandlers.failureHandlers.push( args[0] );
+                        break;
+                    case "withUserObject":
+                        this.queuedHandlers.userObject = args ;
+                        break;
+                }
+                return new Proxy(target, handler);
+            }
+        }
+        // else if (["withFailureHandler", "withSuccessHandler", "withUserObject"].includes(prop)) {
+        //     console.log( "passing through function call to new proxy %s", prop ) ;
+        //     return function(...args) {
+        //         // Pass the call to the base class but intercept the returned object
+        //         return new Proxy(target[prop](...args), handler);
+        //     }
+        // }
+
+        return function(...args) {
+          const processId = `${prop}_${new Date().getTime().toString()}`;
+          
+          const intervalId = setInterval(() => {
+              google.script.run
+                  .withSuccessHandler(response => {
+                      this.configInstance.debug(`client received: [${processId}] ${JSON.stringify(response)}`);
+                      if (response.messages && response.messages.length > 0) {
+                          response.messages.forEach(msg => msg && this.configInstance.log(msg));
+                          // Schedule a one-time poll 
+                          this.doOneTimePoll(75, processId);
+                      }
+                  })
+                  .getProcessStatus(processId);
+          }, this.defaultPollInterval );
+
+
+          this.queuedHandlers.successHandlers.push( () => {this.onSuccess(processId)} ) ;
+          this.queuedHandlers.failureHandlers.push( (error) => {this.onFailure(err,processId)} ) ;
+
+          try 
+          {
+            const successFns = this.queuedHandlers.successHandlers ;
+            const failureFns = this.queuedHandlers.failureHandlers ;
+            const wrapUp = () => 
+              { 
+                console.log("wrap up called with %s", processId ); 
+
+                clearInterval(intervalId);  // Stop the recurring polling
+
+                // Perform a one-time poll 
+                this.doOneTimePoll(10, processId);
+              };
+
+            const toReturn = 
+              target
+                .withUserObject(this.queuedHandlers.userObject)
+                .withSuccessHandler(obj => {
+                  try 
+                  {
+                    console.log('withSuccessHandler run, %s queued methods', successFns.length );
+                    successFns.forEach(fn => {console.log("invoking %s", fn) ; fn(obj);});
+                  }
+                  finally 
+                  {
+                    wrapUp() ;
+                  }
+                })
+                .withFailureHandler(obj => {
+                  try 
+                  {
+                    console.log('withFailureHandler run, %s queued methods', failureFns.length );
+                    failureFns.forEach(fn => fn(obj));
+                  }
+                  finally 
+                  {
+                    wrapUp() ;
+                  }
+                })
+                // Invoke the actual function 
+                .invokeWithId(prop, processId, ...args);
+
+            return toReturn ;
+          }
+          finally 
+          {
+            this.queuedHandlers.successHandlers = []; // Clear the success handlers queue
+            this.queuedHandlers.failureHandlers = []; // Clear the failure handlers queue
+            this.queuedHandlers.userObject = null ; // clear this 
+            
+          }
+        }
+    }
+  };
+  /**
+   * Creates a log server that sets up a proxy for Google Apps Script server-side functions.
+   * 
+   * @param {Function} [log=console.log] - Logging function.
+   * @param {Function} [debug=console.log] - Debug function.
+   * @param {Function} [error=console.log] - Error function.
+   * @param {Object} [target=google.script.run] - Target for server-side invocation.
+   * @param {number} [pollInterval=1250] - Polling interval (default: 1750ms).
+   * 
+   * @throws {Error} If log, debug, or error is null.
+   * @throws {Error} If pollInterval is not greater than zero.
+   * 
+   * @returns {Proxy} A new Proxy instance for server-side function invocation.
+   */
+  const createLogServer = (
+      log = console.log, 
+      debug = console.log, 
+      error = console.log, 
+      target = google.script.run,
+      pollInterval = 1250
+  ) => {
+
+    // Argument validations
+    if (!log || !debug || !error) {
+        throw new Error('Log, debug, and error functions cannot be null.');
+    }
+
+    if (pollInterval <= 0) {
+        throw new Error('Polling interval must be greater than zero.');
+    }
+
+    class Config {
+        constructor(log, debug, error) {
+            this.log = log;
+            this.debug = debug;
+            this.error = error;
+        }
+    }
+
+    const configInstance = new Config(log, debug, error);
+
+    handler.initialize(configInstance, pollInterval);
+
+    return new Proxy(target, handler );
+  }
+
+  $(document).ready(function() {
+    /**
+     * Validate an email address.
+     * 
+     * @param {string} email - The email address to validate.
+     * @returns {boolean} - `true` if the email is valid, `false` otherwise.
+     */
+    function validateEmail(email) {
+      // Use a regular expression to validate the email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+    
+    let logCounter = 0;
+
+    function addLog(message) {
+      logCounter++;  // Increment the counter for every new log
+
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric' });
+      let logContent;
+
+      if (message.length > 120) {
+          logContent = `
+          <div class="timestamp-container">
+              <span class="text-muted timestamp">${timestamp}</span>
+              <span class="badge bg-light text-muted expand-badge" data-bs-toggle="collapse" href="#collapseContent${logCounter}" role="button">+</span>
+          </div>
+          <a class="collapsed d-block position-relative preview-content" data-bs-toggle="collapse" href="#collapseContent${logCounter}">
+              ${message.substring(0, 120)}...
+          </a>
+          <div class="collapse mt-2 full-content" id="collapseContent${logCounter}">
+              ${message}
+          </div>`;
+      } else {
+          logContent = `<div class="timestamp-container">
+              <span class="text-muted timestamp">${timestamp}</span>
+          </div>
+          ${message}`;
+      }
+
+      const logItem = `
+      <li class="list-group-item flash-bg">
+          ${logContent}
+      </li>`;
+      $('#logList').prepend(logItem);
+      trimLogs();
+    }
+
+    $('#logList').on('show.bs.collapse', 'div.collapse', function() {
+        console.log("Expanding content");  // Debug line
+        $(this).prev('.timestamp-container').find('.expand-badge').text('-');
+        $(this).siblings('.preview-content').hide();
+    }).on('hide.bs.collapse', 'div.collapse', function() {
+        console.log("Collapsing content");  // Debug line
+        $(this).prev('.timestamp-container').find('.expand-badge').text('+');
+        $(this).siblings('.preview-content').show();
+    });
+
+    function trimLogs() {
+        while ($('#logList').children().length > 3000) {
+            $('#logList').children().last().remove();
+        }
+    }
+
+    function showStatusIndicator(message) {
+      $("#statusIndicator")
+        .removeClass("d-none alert-success alert-danger")
+        .addClass("alert-primary")
+        .find("#statusMessage")
+        .text(message);
+      
+      $("#statusIcon").attr("class", "bi bi-hourglass");
+    }
+
+    function updateStatus(success, message) {
+      if(success) {
+        $("#statusIndicator").removeClass("alert-primary").addClass("alert-success");
+        $("#statusIcon").attr("class", "bi bi-check-circle-fill");
+      } else {
+        $("#statusIndicator").removeClass("alert-primary").addClass("alert-danger");
+        $("#statusIcon").attr("class", "bi bi-x-circle-fill");
+      }
+      $("#statusMessage").text(" " + message);
+    }
+
+    function clearStatus() {
+      $("#statusIndicator").addClass("d-none").find("#statusMessage").text("");
+      $("#statusIcon").attr("class", "bi");
+    }
+
+
+    $("#receiptBtn").on("click", function() {
+      // Reset status indicator
+      $('#statusIcon').removeClass().addClass('bi'); // Chain jQuery methods for brevity
+
+
+      const emailFilter = $('#emailFilterInput').val().trim();
+      const daysPrior = parseInt($('#daysPriorInput').val());
+
+      // Validate the email input if it's not empty (assuming it's an optional field).
+      if (emailFilter && !validateEmail(emailFilter)) {
+          alert('Please enter a valid email address.');
+        return;
+      }
+
+      const server = createLogServer( (mesg) => addLog(mesg) );
+
+      // Show the spinner when the button is clicked
+      $('#loadingSpinner').show();
+
+      server
+          .withSuccessHandler( (data) => {
+              console.log("process emails finished");
+              
+              // Hide the spinner once the function completes successfully
+              $('#loadingSpinner').hide();
+
+              // Show the success status indicator
+              $('#statusIcon').attr('class', 'bi bi-check-circle-fill text-success');
+          })
+          .withFailureHandler((error) => {
+              // Hide the spinner once an error occurs
+              $('#loadingSpinner').hide();
+
+              // Show the failure status indicator
+              $('#statusIcon').attr('class', 'bi bi-x-circle-fill text-danger');
+
+          })
+          .processMatchingEmails(emailFilter, daysPrior);
+      });
+    });
+</script>
+</body>
+
+</html>

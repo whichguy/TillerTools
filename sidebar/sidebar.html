@@ -43,6 +43,12 @@
             margin-left: auto;
         }
 
+        /* Preamble message styling */
+        .preamble-message {
+            font-weight: normal;
+            margin-bottom: 0.5rem;
+        }
+
         /* Log list styling */
         #logList {
             padding: 0;
@@ -387,6 +393,16 @@
                 let lastLogTimestamp = null; // Declaring lastLogTimestamp here
 
                 /**
+                 * Initializes Bootstrap tooltips.
+                 */
+                function initializeTooltips() {
+                    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
+                }
+
+                /**
                  * Initializes the LogInterface by setting up the server, generating inputs and buttons,
                  * binding event handlers, initializing timestamp updates, and loading configurations.
                  */
@@ -410,6 +426,9 @@
 
                         // Load all configurations from user properties
                         loadAllConfigs();
+
+                        // Initialize Bootstrap tooltips
+                        initializeTooltips();
                     } catch (error) {
                         console.error("Initialization error:", error.message);
                         alert("An error occurred during initialization. Please check the console for more details.");
@@ -519,6 +538,15 @@
 
                             const cardBody = $('<div>').addClass('card-body'); // Body for the content inside the card (inputs and buttons)
 
+                            // **Add Preamble Message Here (Before Arguments)**
+                            if (config.preamble) { // Check if a preamble message is provided
+                                const preamble = $('<p>')
+                                    .addClass('preamble-message') // Optional: Add a class for styling
+                                    .text(config.preamble);
+                                cardBody.append(preamble);
+                            }
+
+                            // Generate input fields and labels with tooltips
                             config.args.forEach(arg => {
                                 const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`; // Replace spaces with dashes
 
@@ -567,9 +595,13 @@
                                         }
                                     }
 
-                                    // Create form group with label and input
+                                    // Create form group with label and input, including tooltip attributes
                                     const formGroup = $('<div>').addClass('form-group').append(
-                                        $('<label>').attr('for', inputId).text(arg.label), // Added the 'for' attribute to label
+                                        $('<label>')
+                                            .attr('for', inputId)
+                                            .attr('data-bs-toggle', 'tooltip') // Enable tooltip
+                                            .attr('title', arg.tooltip || '') // Set tooltip text
+                                            .text(arg.label),
                                         input
                                     );
 
@@ -599,8 +631,6 @@
                         alert("An error occurred while generating input fields and buttons. Please check the console for more details.");
                     }
                 }
-
-
 
 
                 /**

@@ -7,12 +7,13 @@
                     
                     // Add button configurations with hidden arguments
                     LogInterface.addButtonConfig({
+                        preamble: 'Look through the payouts from stripe and expand the payout with the transactions associated with that payout. Note this will modify your sheet',
                         label: 'Start Process',
                         functionName: 'sb_longRunningFunction',
                         groupLabel: 'Process Controls',
                         args: [
-                            { label: 'Start Date', type: 'date',  defaultValue: new Date(new Date().setDate(new Date().getDate() - 7)), visible: true },
-                            { label: 'End Date', type: 'date', required: true, visible: true },
+                            { label: 'Start Date', type: 'date',  defaultValue: new Date(new Date().setDate(new Date().getDate() - 7)), visible: true , tooltip: 'Select the start date for the operation.'},
+                            { label: 'End Date', type: 'date', required: true, visible: true, tooltip: 'Select the end date for the operation.' },
                             { label: 'userId', type: 'hidden', defaultValue: '12345', visible: false },
                             { label: 'sessionToken', type: 'hidden', defaultValue: 'abcde12345', visible: false }
                         ]

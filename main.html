@@ -1,0 +1,26 @@
+
+
+              // Document ready function to initialize the LogInterface
+            $(document).ready(function () {
+                try {
+
+                    
+                    // Add button configurations with hidden arguments
+                    LogInterface.addButtonConfig({
+                        label: 'Process Stripe Payouts',
+                        preamble: 'Look through the payouts from stripe and expand the payout with the transactions associated with that payout. Note this will modify your sheet',
+                        functionName: 'processStripePayouts',
+                        groupLabel: 'Transactions',
+                        args: [
+                            { label: 'Start Date', type: 'date', defaultValue: new Date(new Date().setDate(new Date().getDate() - 7)), visible: true, tooltip: 'Select the start date for the operation' },
+                            { label: 'End Date', type: 'date', required: false, visible: true, tooltip: 'Select the end date for the operation'  }
+                        ]
+                    });
+
+                // Initialize the LogInterface
+                    LogInterface.init();
+                } catch (error) {
+                    console.error("Error during document ready:", error.message);
+                    alert("An error occurred during setup. Please check the console for more details.");
+                }
+            });

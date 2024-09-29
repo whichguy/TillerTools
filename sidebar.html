@@ -80,6 +80,7 @@
             position: relative;
             transition: all 0.3s ease;
             overflow: hidden;
+            white-space: normal;   /* Ensure wrapping */
             cursor: pointer; /* Indicates the entire message is clickable */
         }
 
@@ -296,7 +297,7 @@
                                 });
                             }
                         })
-                        .getProcessStatus(processId);
+                        .sb_getProcessStatus(processId);
                 }, interval);
             };
 
@@ -320,7 +321,7 @@
                                         doOneTimePoll(75, processId);
                                     }
                                 })
-                                .getProcessStatus(processId);
+                                .sb_getProcessStatus(processId);
                         }, defaultPollInterval);
 
                         /**
@@ -347,7 +348,7 @@
                         target
                             .withSuccessHandler(onSuccess)
                             .withFailureHandler(onError)
-                            .invokeWithId(prop, processId, ...args);
+                            .sb_invokeWithId(prop, processId, ...args);
                     }
                 }
             };
@@ -443,7 +444,7 @@
                 async function loadConfigForFunction(functionName, args) {
                     try {
                         // Simulate an async call to the server to fetch user properties
-                        const properties = await server.getUserPropertiesForFunction(functionName);
+                        const properties = await server.sb_getUserPropertiesForFunction(functionName);
 
                         // Check if properties are found and are valid
                         if (properties && typeof properties === 'object') {
@@ -522,12 +523,49 @@
                                 const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`; // Replace spaces with dashes
 
                                 if (arg.visible !== false) { // Only create input fields for visible arguments
-                                    // Create input element based on the argument type
-                                    const input = $('<input>')
-                                        .attr('type', arg.type)
-                                        .addClass('form-control mb-2')
-                                        .attr('placeholder', arg.label)
-                                        .attr('id', inputId);
+                                    let input;
+
+                                    // Handle date type specifically to format the default value properly
+                                    if (arg.type === 'date') {
+                                        let formattedDate = '';
+
+                                        // Check if the defaultValue is a valid date (Date object or valid date string)
+                                        if (arg.defaultValue) {
+                                            let dateValue;
+
+                                            // If defaultValue is a string, attempt to parse it as a date
+                                            if (typeof arg.defaultValue === 'string') {
+                                                dateValue = new Date(arg.defaultValue);
+                                            } else if (arg.defaultValue instanceof Date) {
+                                                dateValue = arg.defaultValue;
+                                            }
+
+                                            // Check if the parsed date is valid
+                                            if (!isNaN(dateValue?.getTime())) {
+                                                formattedDate = dateValue.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+                                            } else {
+                                                console.error("Invalid date value for:", arg.label);
+                                            }
+                                        }
+
+                                        input = $('<input>')
+                                            .attr('type', 'date')
+                                            .addClass('form-control mb-2')
+                                            .attr('id', inputId)
+                                            .val(formattedDate); // Set the default value for date type
+                                    } else {
+                                        // Create input element based on the argument type
+                                        input = $('<input>')
+                                            .attr('type', arg.type)
+                                            .addClass('form-control mb-2')
+                                            .attr('id', inputId)
+                                            .attr('placeholder', arg.label);
+
+                                        // Assign default value if it's available and not a date
+                                        if (arg.defaultValue) {
+                                            input.val(arg.defaultValue);
+                                        }
+                                    }
 
                                     // Create form group with label and input
                                     const formGroup = $('<div>').addClass('form-group').append(
@@ -561,6 +599,9 @@
                         alert("An error occurred while generating input fields and buttons. Please check the console for more details.");
                     }
                 }
+
+
+
 
                 /**
                  * Handles button click events by validating inputs, invoking server functions,
@@ -679,8 +720,8 @@
                         });
 
                         // Check if the server has the saveUserProperties function
-                        if (server && typeof server.saveUserProperties === 'function') {
-                            server.saveUserProperties(functionName, properties);
+                        if (server && typeof server.sb_saveUserPropertiesForFunction === 'function') {
+                            server.sb_saveUserPropertiesForFunction(functionName, properties);
                         } else {
                             console.warn(`saveUserProperties is not a function on the server. Properties for ${functionName} will not be saved.`);
                         }
@@ -691,15 +732,15 @@
                 }
 
                 /**
-                 * Adds a log message to the log list in the UI.
-                 * If the message exceeds the maximum length, it will display a toggle chevron.
+                 * Adds a new log message to the log list in the UI.
+                 * If the message is longer than 100 characters, it will be truncated with a toggle chevron.
                  *
                  * @param {string} message - The log message to display.
                  * @param {string} type - The type of log message (e.g., 'info', 'error').
                  * @param {number} maxLines - The maximum number of log lines to keep.
                  */
                 function addToLogList(message, type = 'info', maxLines = 3000) {
-                    const MAX_MESSAGE_LENGTH = 100; // Define the maximum length for a log message
+                    const MAX_MESSAGE_LENGTH = 100;  // Define the threshold for truncation
                     const now = new Date();
                     const timestamp = now.toISOString();
                     const currentSeconds = now.getSeconds();
@@ -711,15 +752,15 @@
                         lastLogTimestamp = currentSeconds;
                     }
 
-                    // Determine if the message needs to be truncated
-                    const isTruncated = message.length > MAX_MESSAGE_LENGTH;
-                    const displayMessage = message; // Use full message
+                    // Determine if the message is longer than the defined threshold
+                    const isLongMessage = message.length > MAX_MESSAGE_LENGTH;
+                    const isTruncated = isLongMessage;  // Messages longer than 100 characters are truncated
 
-                    // Construct the log message HTML with conditional chevron
+                    // Construct the log message HTML
                     const listItem = `
                         <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
                             <div class="log-message ${isTruncated ? 'truncated' : ''}" role="button" aria-expanded="${!isTruncated ? 'true' : 'false'}" tabindex="0">
-                                ${displayMessage}
+                                ${message}  <!-- Allow message to wrap or be truncated based on length -->
                                 ${isTruncated ? `<span class="toggle-arrow" tabindex="-1" role="button" aria-label="Expand message"><i class="bi bi-chevron-right"></i></span>` : ''}
                             </div>
                             ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
@@ -736,6 +777,7 @@
                         }
                     }
                 }
+
 
                 /**
                  * Binds event handlers for UI interactions, such as clearing logs,
@@ -916,7 +958,7 @@
 
 
                 <!-- Include the external document.ready() function -->
-                <?!= include('main') ?>
+                <?!= sb_include('main') ?>
 
                 // Expose public methods
                 return {

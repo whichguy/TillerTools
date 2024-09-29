@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Container styling */
+        .container {
+            padding: 1rem;
+            background-color: #ffffff;
+            color: #333333;
+        }
+
+        /* Tab content margin */
+        .tab-content {
+            margin-top: 1rem;
+        }
+
+        /* Expand All and Clear Log button container */
+        #expandAllContainer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            margin-bottom: 10px;
+        }
+
+        /* Clear Log button styling */
+        #clearLogBtn {
+            background-color: #f1f3f4;
+            color: #202124;
+            border: none;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            margin-left: auto;
+        }
+
+        /* Log list styling */
+        #logList {
+            padding: 0;
+            margin: 0;
+            list-style-type: none;
+        }
+
+        /* Individual log item styling */
+        #logList li {
+            position: relative;
+            padding: 0.4rem 0.6rem;
+            padding-bottom: 1.2rem;
+            border: none;
+            border-bottom: 1px solid #e0e0e0;
+            background-color: #f9f9f9;
+        }
+
+        /* Timestamp styling */
+        .log-time {
+            position: absolute;
+            bottom: 0.2rem;
+            right: 0.6rem;
+            font-size: 0.5rem;
+            color: #666666;
+            white-space: nowrap;
+        }
+
+        /* Log message styling */
+        .log-message {
+            margin-bottom: 0.2rem;
+            text-align: left;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            color: #333333;
+            position: relative;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            cursor: pointer; /* Indicates the entire message is clickable */
+        }
+
+        /* Truncated message styling */
+        .truncated {
+            max-height: 3em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        /* Expanded message styling */
+        .expanded {
+            max-height: none;
+            white-space: normal;
+            overflow: visible;
+        }
+
+        /* Toggle arrow styling */
+        .toggle-arrow {
+            position: absolute;
+            right: 0.6rem;
+            top: 0.2rem;
+            font-size: 1em;
+            color: #1a73e8;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Toggle arrow hover effect */
+        .toggle-arrow:hover {
+            color: #0b66d4;
+        }
+
+        /* Button styling */
+        .btn {
+            margin-right: 0.4rem;
+            font-size: 0.75rem;
+            padding: 0.2rem 0.4rem;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+        }
+
+        /* Button hover effect */
+        .btn:hover {
+            background-color: #0b66d4;
+        }
+
+        /* Config content styling */
+        .config-content {
+            background-color: #f9f9f9;
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+        }
+
+        /* Individual config item styling */
+        .config-item {
+            margin-bottom: 1rem;
+        }
+
+        /* Config item label styling */
+        .config-item label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+        }
+
+        /* Config item input fields styling */
+        .config-item input,
+        .config-item select,
+        .config-item textarea {
+            width: 100%;
+            padding: 0.4rem;
+            font-size: 1rem;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Modal for missing fields -->
+        <div class="modal fade" id="missingFieldsModal" tabindex="-1" aria-labelledby="missingFieldsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="missingFieldsModalLabel">Missing Required Fields</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <ul id="missingFieldsList" class="list-group">
+                            <!-- Missing field names will be dynamically added here -->
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab navigation -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="messages-tab" data-bs-toggle="tab" href="#messages" role="tab"
+                    aria-controls="messages" aria-selected="true">Messages</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="config-tab" data-bs-toggle="tab" href="#config" role="tab"
+                    aria-controls="config" aria-selected="false">Config</a>
+            </li>
+        </ul>
+
+        <!-- Tab content -->
+        <div class="tab-content">
+            <!-- Messages Tab -->
+            <div class="tab-pane fade show active" id="messages" role="tabpanel" aria-labelledby="messages-tab">
+                <!-- Input fields container -->
+                <div id="inputContainer" class="mb-3">
+                    <!-- Dynamic input fields will be inserted here -->
+                </div>
+
+                <!-- Buttons container -->
+                <div id="buttonContainer" class="mb-2">
+                    <!-- Dynamic buttons will be inserted here -->
+                </div>
+
+                <!-- Expand All and Clear Log controls -->
+                <div id="expandAllContainer">
+                    <div>
+                        <input type="checkbox" id="expandAll">
+                        <label for="expandAll">Expand All</label>
+                    </div>
+                    <button id="clearLogBtn">Clear</button>
+                </div>
+
+                <!-- Log list -->
+                <ul id="logList" class="list-group"></ul>
+            </div>
+
+            <!-- Config Tab -->
+            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                <div id="configContent" class="config-content">
+                    <p>Loading configuration...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS, Popper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.min.js"></script>
+
+    <script>
+        /**
+         * Creates a log server with specified log, debug, and error functions.
+         * Uses a Proxy to intercept function calls and handle polling for process status.
+         *
+         * @param {Function} log - Function to handle log messages.
+         * @param {Function} debug - Function to handle debug messages.
+         * @param {Function} error - Function to handle error messages.
+         * @param {Object} target - The target object to proxy (usually google.script.run).
+         * @param {number} defaultPollInterval - The default polling interval in milliseconds.
+         * @returns {Proxy} - A Proxy object that intercepts function calls.
+         */
+        const createLogServer = (
+            log = console.log,
+            debug = console.log,
+            error = console.log,
+            target = google.script.run,
+            defaultPollInterval = 1250
+        ) => {
+
+            // Validate that log, debug, and error functions are provided
+            if (!log || !debug || !error) {
+                throw new Error('Log, debug, and error functions cannot be null.');
+            }
+
+            // Validate that polling interval is positive
+            if (defaultPollInterval <= 0) {
+                throw new Error('Polling interval must be greater than zero.');
+            }
+
+            // Configuration class to hold log functions
+            class Config {
+                constructor(log, debug, error) {
+                    this.log = log;
+                    this.debug = debug;
+                    this.error = error;
+                }
+            }
+
+            const configInstance = new Config(log, debug, error);
+
+            /**
+             * Performs a one-time poll after a specified interval to get process status.
+             *
+             * @param {number} interval - The interval in milliseconds before polling.
+             * @param {string} processId - The ID of the process to poll.
+             */
+            const doOneTimePoll = (interval, processId) => {
+                setTimeout(() => {
+                    google.script.run
+                        .withSuccessHandler(response => {
+                            configInstance.debug(`client received: [${processId}] ${JSON.stringify(response)}`);
+                            if (response.messages && response.messages.length > 0) {
+                                response.messages.forEach(msg => {
+                                    if (msg) {
+                                        configInstance.log(msg);
+                                    }
+                                });
+                            }
+                        })
+                        .getProcessStatus(processId);
+                }, interval);
+            };
+
+            // Proxy handler to intercept function calls
+            const handler = {
+                get: function (target, prop) {
+                    return function (...args) {
+                        const processId = new Date().getTime().toString();
+
+                        // Start polling at the default interval
+                        const pollInterval = setInterval(() => {
+                            google.script.run
+                                .withSuccessHandler(response => {
+                                    configInstance.debug(`client received: [${processId}] ${JSON.stringify(response)}`);
+                                    if (response.messages && response.messages.length > 0) {
+                                        response.messages.forEach(msg => {
+                                            if (msg) {
+                                                configInstance.log(msg);
+                                            }
+                                        });
+                                        doOneTimePoll(75, processId);
+                                    }
+                                })
+                                .getProcessStatus(processId);
+                        }, defaultPollInterval);
+
+                        /**
+                         * Handler for successful function invocation.
+                         */
+                        const onSuccess = () => {
+                            clearInterval(pollInterval);
+                            console.log(`${prop} completed successfully`);
+                            doOneTimePoll(10, processId);
+                        };
+
+                        /**
+                         * Handler for failed function invocation.
+                         *
+                         * @param {Error} err - The error object.
+                         */
+                        const onError = (err) => {
+                            clearInterval(pollInterval);
+                            console.log(`Error: ${prop}: ${err.message}` || 'An error occurred.');
+                            doOneTimePoll(10, processId);
+                        };
+
+                        // Invoke the actual server-side function with success and failure handlers
+                        target
+                            .withSuccessHandler(onSuccess)
+                            .withFailureHandler(onError)
+                            .invokeWithId(prop, processId, ...args);
+                    }
+                }
+            };
+
+            // Return the proxied target
+            return new Proxy(target, handler);
+        }
+
+        /**
+         * Updates input fields with user properties.
+         *
+         * @param {Object|string} properties - The properties to set in the input fields, or a message string.
+         */
+        function updateInputsWithUserProperties(properties) {
+            if (typeof properties === 'string' && properties === 'No configuration found.') {
+                alert('No configuration found.');
+                return;
+            }
+
+            // Loop through the properties and set the values in the appropriate input fields
+            for (let key in properties) {
+                const inputId = key.split('_')[1]; // Assuming the format is functionName_arg1, functionName_arg2, etc.
+                $(`#input-${inputId}`).val(properties[key]);
+            }
+        }
+
+        (function ($) {
+            /**
+             * LogInterface handles the user interface interactions, including generating input fields,
+             * managing logs, handling button clicks, and managing configurations.
+             */
+            const LogInterface = (function () {
+                let server = null;
+                const specificButtonConfigs = [];
+                const inputFieldMap = {}; // Used to track shared input fields by argument name
+                let lastLogTimestamp = null; // Declaring lastLogTimestamp here
+
+                /**
+                 * Initializes the LogInterface by setting up the server, generating inputs and buttons,
+                 * binding event handlers, initializing timestamp updates, and loading configurations.
+                 */
+                function init() {
+                    try {
+                        // Initialize the log server with a logging function
+                        server = createLogServer(
+                            (message) => addToLogList(message, 'info'),
+                            console.debug,
+                            console.error
+                        );
+
+                        // Generate input fields and buttons based on configurations
+                        generateInputsAndButtons();
+
+                        // Bind event handlers for UI interactions
+                        bindEventHandlers();
+
+                        // Initialize timestamp updates to refresh at midnight
+                        initializeMidnightTimer();
+
+                        // Load all configurations from user properties
+                        loadAllConfigs();
+                    } catch (error) {
+                        console.error("Initialization error:", error.message);
+                        alert("An error occurred during initialization. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Loads all configurations for each button configuration.
+                 * This function iterates through each button config and loads its properties.
+                 */
+                async function loadAllConfigs() {
+                    try {
+                        // Iterate through each button configuration and load the properties for each function
+                        for (const config of specificButtonConfigs) {
+                            console.log(`Loading config for function: ${config.functionName}`);
+                            await loadConfigForFunction(config.functionName, config.args); // Await the result for each function
+                        }
+                        console.log("Configuration load completed.");
+                    } catch (error) {
+                        console.error("Error loading configurations:", error.message);
+                        alert("An error occurred while loading configurations. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Loads user properties for a specific function and populates input fields.
+                 *
+                 * @param {string} functionName - The name of the function.
+                 * @param {Array} args - The list of arguments for the function.
+                 * @returns {Object|null} - The properties after successful population, or null if not found.
+                 */
+                async function loadConfigForFunction(functionName, args) {
+                    try {
+                        // Simulate an async call to the server to fetch user properties
+                        const properties = await server.getUserPropertiesForFunction(functionName);
+
+                        // Check if properties are found and are valid
+                        if (properties && typeof properties === 'object') {
+                            args.forEach(arg => {
+                                if (arg.visible !== false) { // Only process visible arguments
+                                    const inputId = `input-${functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                                    
+                                    // Populate input fields with saved properties
+                                    if (properties[inputId]) {
+                                        $(`#${inputId}`).val(properties[inputId]);
+                                    }
+                                }
+                            });
+                            return properties; // Return the properties after successful population
+                        } else {
+                            console.log("No user properties found for function:", functionName);
+                            return null; // Return null if no properties found
+                        }
+                    } catch (err) {
+                        // Catch and log any error that occurs
+                        console.error("Failed to load user properties for function:", functionName, err);
+                        throw new Error(`Error while loading configuration for function ${functionName}: ${err.message}`);
+                    }
+                }
+
+                /**
+                 * Updates the Config tab with the provided properties.
+                 *
+                 * @param {Object|string} properties - The properties to display or a message string.
+                 */
+                function updateConfigTab(properties) {
+                    if (typeof properties === 'string') {
+                        // If the server returns the message "No configuration found", display it
+                        $('#configContent').html(`<p style="color: red;">${properties}</p>`);
+                    } else {
+                        // Else populate the form with the user properties
+                        $('#configContent').empty(); // Clear the content
+                        for (let key in properties) {
+                            const inputId = key.split('_')[1];  // Assuming the format is functionName_arg1, functionName_arg2, etc.
+                            $('#configContent').append(`
+                                <div class="form-group">
+                                    <label for="input-${inputId}">${inputId}</label>
+                                    <input id="input-${inputId}" class="form-control" value="${properties[key]}">
+                                </div>
+                            `);
+                        }
+                    }
+                }
+
+                /**
+                 * Adds a new button configuration to the specificButtonConfigs array.
+                 *
+                 * @param {Object} config - The button configuration object.
+                 */
+                function addButtonConfig(config) {
+                    specificButtonConfigs.push(config);
+                }
+
+                /**
+                 * Generates input fields and buttons based on the button configurations.
+                 */
+                function generateInputsAndButtons() {
+                    try {
+                        specificButtonConfigs.forEach(config => {
+                            // Create a Bootstrap card or grouping box if groupLabel is specified
+                            const groupBox = $('<div>').addClass('card mb-3'); // Bootstrap card to represent the group box
+
+                            if (config.groupLabel) {
+                                const cardHeader = $('<div>').addClass('card-header').text(config.groupLabel); // Add group label as card header
+                                groupBox.append(cardHeader);
+                            }
+
+                            const cardBody = $('<div>').addClass('card-body'); // Body for the content inside the card (inputs and buttons)
+
+                            config.args.forEach(arg => {
+                                const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`; // Replace spaces with dashes
+
+                                if (arg.visible !== false) { // Only create input fields for visible arguments
+                                    // Create input element based on the argument type
+                                    const input = $('<input>')
+                                        .attr('type', arg.type)
+                                        .addClass('form-control mb-2')
+                                        .attr('placeholder', arg.label)
+                                        .attr('id', inputId);
+
+                                    // Create form group with label and input
+                                    const formGroup = $('<div>').addClass('form-group').append(
+                                        $('<label>').attr('for', inputId).text(arg.label), // Added the 'for' attribute to label
+                                        input
+                                    );
+
+                                    cardBody.append(formGroup);
+
+                                    // Track input fields
+                                    inputFieldMap[inputId] = input;
+                                }
+                            });
+
+                            // Create the action button
+                            const button = $('<button>')
+                                .addClass('btn btn-primary btn-sm')
+                                .text(config.label || config.functionName)
+                                .attr('data-function', config.functionName)
+                                .click(handleButtonClick);
+
+                            cardBody.append(button);
+                            groupBox.append(cardBody);
+                            $('#inputContainer').append(groupBox);
+
+                            // Load user properties for this specific function
+                            loadConfigForFunction(config.functionName, config.args);
+                        });
+                    } catch (error) {
+                        console.error("Error generating inputs and buttons:", error.message);
+                        alert("An error occurred while generating input fields and buttons. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Handles button click events by validating inputs, invoking server functions,
+                 * and saving user properties.
+                 *
+                 * @param {Event} event - The click event object.
+                 */
+                function handleButtonClick(event) {
+                    try {
+                        const button = $(event.currentTarget);
+                        const functionName = button.attr('data-function');
+                        const config = specificButtonConfigs.find(config => config.functionName === functionName);
+
+                        if (!config) {
+                            console.error(`Configuration for function ${functionName} not found.`);
+                            alert(`Configuration for function ${functionName} not found.`);
+                            return;
+                        }
+
+                        const missingFields = [];
+                        let firstMissingField = null;
+
+                        // Validate required fields
+                        config.args.forEach(arg => {
+                            if (arg.visible === false) return; // Skip hidden arguments
+
+                            const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                            const input = $(`#${inputId}`);  // Use the dynamically generated ID
+                            const label = $(`label[for="${inputId}"]`);
+
+                            // Debugging: Ensure the input element exists
+                            if (!input.length) {
+                                console.error(`Input field for ${arg.label} not found!`);
+                                return;
+                            }
+
+                            console.log(`Checking field: ${arg.label}`);  // Log field being checked
+                            console.log(`Input value: ${input.val()}`);  // Log the actual input value
+
+                            // Check for required fields and specific handling for 'date' type fields
+                            if (arg.required && (!input.val() || (input[0].type === 'date' && input[0].value === ""))) {
+                                missingFields.push(arg.label);
+                                console.log(`${arg.label} is missing or invalid.`);  // Log missing/invalid fields
+
+                                // Highlight missing field label
+                                label.css('color', 'red');
+
+                                // Store the first missing field for scrolling
+                                if (!firstMissingField) {
+                                    firstMissingField = input;
+                                }
+                            } else {
+                                console.log(`${arg.label} is filled correctly.`);  // Log valid fields
+                                // Reset label color if field is filled
+                                label.css('color', '');
+                            }
+                        });
+
+                        if (missingFields.length > 0) {
+                            console.log(`Missing fields: ${missingFields.join(', ')}`);  // Log all missing fields
+
+                            // Show modal with missing fields
+                            $('#missingFieldsList').empty();
+                            missingFields.forEach(field => {
+                                $('#missingFieldsList').append(`<li class="list-group-item">${field}</li>`);
+                            });
+                            $('#missingFieldsModal').modal('show');
+
+                            // Scroll to first missing field only if it exists
+                            if (firstMissingField && firstMissingField.length) {
+                                firstMissingField.focus();
+                                $('html, body').animate({
+                                    scrollTop: firstMissingField.offset().top - 100
+                                }, 600);
+                            }
+
+                            return; // Prevent function call if fields are missing
+                        }
+
+                        // Gather all arguments in order, including hidden ones with default values
+                        const allArgs = config.args.map(arg => {
+                            if (arg.visible === false) {
+                                return arg.defaultValue || ''; // Use default value or empty string
+                            } else {
+                                const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                                return $(`#${inputId}`).val();
+                            }
+                        });
+
+                        console.log(`Invoking ${functionName} with arguments:`, allArgs);
+
+                        // Invoke the server-side function with all arguments
+                        server[functionName](...allArgs);
+
+                        // Save the user properties for visible arguments only
+                        saveUserPropertiesForFunction(functionName, config.args);
+                    } catch (error) {
+                        console.error("Error handling button click:", error.message);
+                        alert("An error occurred while processing your request. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Saves user properties for a specific function by sending them to the server.
+                 *
+                 * @param {string} functionName - The name of the function.
+                 * @param {Array} args - The list of arguments for the function.
+                 */
+                function saveUserPropertiesForFunction(functionName, args) {
+                    try {
+                        const properties = {};
+                        args.forEach(arg => {
+                            if (arg.visible === false) return; // Skip hidden arguments
+                            const inputId = `input-${functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                            properties[inputId] = $(`#${inputId}`).val();
+                        });
+
+                        // Check if the server has the saveUserProperties function
+                        if (server && typeof server.saveUserProperties === 'function') {
+                            server.saveUserProperties(functionName, properties);
+                        } else {
+                            console.warn(`saveUserProperties is not a function on the server. Properties for ${functionName} will not be saved.`);
+                        }
+                    } catch (error) {
+                        console.error("Error saving user properties:", error.message);
+                        alert("An error occurred while saving user properties. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Adds a log message to the log list in the UI.
+                 * If the message exceeds the maximum length, it will display a toggle chevron.
+                 *
+                 * @param {string} message - The log message to display.
+                 * @param {string} type - The type of log message (e.g., 'info', 'error').
+                 * @param {number} maxLines - The maximum number of log lines to keep.
+                 */
+                function addToLogList(message, type = 'info', maxLines = 3000) {
+                    const MAX_MESSAGE_LENGTH = 100; // Define the maximum length for a log message
+                    const now = new Date();
+                    const timestamp = now.toISOString();
+                    const currentSeconds = now.getSeconds();
+                    let formattedTime = '';
+
+                    // Update timestamp display if the current second is different from the last
+                    if (!lastLogTimestamp || lastLogTimestamp !== currentSeconds) {
+                        formattedTime = formatTimestamp(timestamp);
+                        lastLogTimestamp = currentSeconds;
+                    }
+
+                    // Determine if the message needs to be truncated
+                    const isTruncated = message.length > MAX_MESSAGE_LENGTH;
+                    const displayMessage = message; // Use full message
+
+                    // Construct the log message HTML with conditional chevron
+                    const listItem = `
+                        <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
+                            <div class="log-message ${isTruncated ? 'truncated' : ''}" role="button" aria-expanded="${!isTruncated ? 'true' : 'false'}" tabindex="0">
+                                ${displayMessage}
+                                ${isTruncated ? `<span class="toggle-arrow" tabindex="-1" role="button" aria-label="Expand message"><i class="bi bi-chevron-right"></i></span>` : ''}
+                            </div>
+                            ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
+                        </li>
+                    `;
+
+                    // Prepend the new log message to the log list
+                    $("#logList").prepend(listItem);
+
+                    // Ensure the log list does not exceed the maximum number of lines
+                    if (typeof maxLines === 'number') {
+                        while ($("#logList li").length > maxLines) {
+                            $("#logList li:last-child").remove();
+                        }
+                    }
+                }
+
+                /**
+                 * Binds event handlers for UI interactions, such as clearing logs,
+                 * expanding/collapsing messages, and handling keyboard interactions.
+                 */
+                function bindEventHandlers() {
+                    try {
+                        // Clear log button click handler
+                        $('#clearLogBtn').click(() => $('#logList').empty());
+
+                        // Expand All checkbox change handler
+                        $('#expandAll').change(function () {
+                            if ($(this).is(":checked")) {
+                                $("#logList .log-message.truncated").each(function () {
+                                    $(this).removeClass('truncated').addClass('expanded');
+                                    $(this).attr('aria-expanded', 'true');
+                                    $(this).find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
+                                });
+                            } else {
+                                $("#logList .log-message.expanded").each(function () {
+                                    $(this).removeClass('expanded').addClass('truncated');
+                                    $(this).attr('aria-expanded', 'false');
+                                    $(this).find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
+                                });
+                            }
+                        });
+
+                        // Toggle arrow click handler for individual log messages
+                        $("#logList").on('click', '.toggle-arrow', function (e) {
+                            e.stopPropagation(); // Prevent triggering the parent .log-message click handler
+                            toggleLogMessage($(this).closest('.log-message'));
+                        });
+
+                        // Toggle entire log message click handler
+                        $("#logList").on('click', '.log-message', function () {
+                            toggleLogMessage($(this));
+                        });
+
+                        // Toggle log message using keyboard (Enter or Space)
+                        $("#logList").on('keypress', '.log-message', function (e) {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleLogMessage($(this));
+                            }
+                        });
+
+                        // Toggle arrow keyboard interaction for accessibility
+                        $("#logList").on('keypress', '.toggle-arrow', function (e) {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleLogMessage($(this).closest('.log-message'));
+                            }
+                        });
+                    } catch (error) {
+                        console.error("Error binding event handlers:", error.message);
+                        alert("An error occurred while binding event handlers. Please check the console for more details.");
+                    }
+                }
+
+                /**
+                 * Toggles the expansion and collapse of a log message.
+                 *
+                 * @param {jQuery} messageDiv - The jQuery object representing the log message div.
+                 */
+                function toggleLogMessage(messageDiv) {
+                    const isTruncated = messageDiv.hasClass('truncated');
+
+                    if (isTruncated) {
+                        messageDiv.removeClass('truncated').addClass('expanded');
+                        messageDiv.attr('aria-expanded', 'true');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
+                    } else {
+                        messageDiv.removeClass('expanded').addClass('truncated');
+                        messageDiv.attr('aria-expanded', 'false');
+                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
+                    }
+
+                    updateExpandAllCheckbox();
+                }
+
+                /**
+                 * Formats a timestamp into a readable string.
+                 *
+                 * @param {string} timestamp - The ISO timestamp string.
+                 * @returns {string} - The formatted timestamp.
+                 */
+                function formatTimestamp(timestamp) {
+                    const date = new Date(timestamp);
+                    const now = new Date();
+
+                    if (isSameDay(date, now)) {
+                        return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+                    } else {
+                        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ` +
+                            `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+                    }
+                }
+
+                /**
+                 * Checks if two dates are on the same day.
+                 *
+                 * @param {Date} date1 - The first date.
+                 * @param {Date} date2 - The second date.
+                 * @returns {boolean} - True if both dates are on the same day, false otherwise.
+                 */
+                function isSameDay(date1, date2) {
+                    return date1.getFullYear() === date2.getFullYear() &&
+                        date1.getMonth() === date2.getMonth() &&
+                        date1.getDate() === date2.getDate();
+                }
+
+                /**
+                 * Initializes a timer to update all timestamps at midnight.
+                 */
+                function initializeMidnightTimer() {
+                    try {
+                        const msUntilMidnight = getMillisecondsUntilMidnight();
+
+                        setTimeout(function () {
+                            updateAllTimestamps();
+                            setInterval(updateAllTimestamps, 24 * 60 * 60 * 1000); // Update every 24 hours
+                        }, msUntilMidnight);
+                    } catch (error) {
+                        console.error("Error initializing midnight timer:", error.message);
+                    }
+                }
+
+                /**
+                 * Calculates the number of milliseconds until the next midnight.
+                 *
+                 * @returns {number} - Milliseconds until midnight.
+                 */
+                function getMillisecondsUntilMidnight() {
+                    const now = new Date();
+                    const nextMidnight = new Date(
+                        now.getFullYear(),
+                        now.getMonth(),
+                        now.getDate() + 1,
+                        0, 0, 0, 0
+                    );
+                    return nextMidnight - now;
+                }
+
+                /**
+                 * Updates all timestamps displayed in the log list.
+                 */
+                function updateAllTimestamps() {
+                    try {
+                        $("#logList li").each(function () {
+                            const timestamp = $(this).attr('data-timestamp');
+                            const formattedTime = formatTimestamp(timestamp);
+                            $(this).find('.log-time').text(formattedTime);
+                        });
+                    } catch (error) {
+                        console.error("Error updating all timestamps:", error.message);
+                    }
+                }
+
+                /**
+                 * Updates the state of the 'Expand All' checkbox based on individual log messages.
+                 */
+                function updateExpandAllCheckbox() {
+                    try {
+                        const total = $("#logList .log-message").length;
+                        const expanded = $("#logList .log-message.expanded").length;
+
+                        if (expanded === total && total > 0) {
+                            $("#expandAll").prop('checked', true).prop('indeterminate', false);
+                        } else if (expanded === 0) {
+                            $("#expandAll").prop('checked', false).prop('indeterminate', false);
+                        } else {
+                            $("#expandAll").prop('indeterminate', true);
+                        }
+                    } catch (error) {
+                        console.error("Error updating 'Expand All' checkbox:", error.message);
+                    }
+                }
+
+
+                <!-- Include the external document.ready() function -->
+                <?!= include('main') ?>
+
+                // Expose public methods
+                return {
+                    init: init,
+                    addButtonConfig: addButtonConfig
+                };
+            })();
+
+        })(jQuery);
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,40 @@
+
+
+              // Document ready function to initialize the LogInterface
+            $(document).ready(function () {
+                try {
+
+                    
+                    // Add button configurations with hidden arguments
+                    LogInterface.addButtonConfig({
+                        label: 'Start Process',
+                        functionName: 'longRunningFunction',
+                        groupLabel: 'Process Controls',
+                        args: [
+                            { label: 'Start Date', type: 'date', visible: true },
+                            { label: 'End Date', type: 'date', required: true, visible: true },
+                            { label: 'userId', type: 'hidden', defaultValue: '12345', visible: false },
+                            { label: 'sessionToken', type: 'hidden', defaultValue: 'abcde12345', visible: false }
+                        ]
+                    });
+
+                    // You can add more button configurations as needed
+                    /*
+                    LogInterface.addButtonConfig({
+                        label: 'Another Process',
+                        functionName: 'anotherFunction',
+                        groupLabel: 'Another Group',
+                        args: [
+                            { label: 'Parameter1', type: 'text', visible: true },
+                            { label: 'Parameter2', type: 'number', visible: true },
+                            { label: 'hiddenParam', type: 'hidden', defaultValue: 'hiddenValue', visible: false }
+                        ]
+                    });
+                    */
+                // Initialize the LogInterface
+                    LogInterface.init();
+                } catch (error) {
+                    console.error("Error during document ready:", error.message);
+                    alert("An error occurred during setup. Please check the console for more details.");
+                }
+            });

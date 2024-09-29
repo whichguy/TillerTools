@@ -448,11 +448,13 @@
                         // Check if properties are found and are valid
                         if (properties && typeof properties === 'object') {
                             args.forEach(arg => {
-                                const inputId = `input-${functionName}-${arg.label.replace(/\s+/g, '-')}`;
-                                
-                                // Populate input fields with saved properties
-                                if (properties[inputId]) {
-                                    $(`#${inputId}`).val(properties[inputId]);
+                                if (arg.visible !== false) { // Only process visible arguments
+                                    const inputId = `input-${functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                                    
+                                    // Populate input fields with saved properties
+                                    if (properties[inputId]) {
+                                        $(`#${inputId}`).val(properties[inputId]);
+                                    }
                                 }
                             });
                             return properties; // Return the properties after successful population
@@ -519,23 +521,25 @@
                             config.args.forEach(arg => {
                                 const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`; // Replace spaces with dashes
 
-                                // Create input element based on the argument type
-                                const input = $('<input>')
-                                    .attr('type', arg.type)
-                                    .addClass('form-control mb-2')
-                                    .attr('placeholder', arg.label)
-                                    .attr('id', inputId);
+                                if (arg.visible !== false) { // Only create input fields for visible arguments
+                                    // Create input element based on the argument type
+                                    const input = $('<input>')
+                                        .attr('type', arg.type)
+                                        .addClass('form-control mb-2')
+                                        .attr('placeholder', arg.label)
+                                        .attr('id', inputId);
 
-                                // Create form group with label and input
-                                const formGroup = $('<div>').addClass('form-group').append(
-                                    $('<label>').attr('for', inputId).text(arg.label), // Added the 'for' attribute to label
-                                    input
-                                );
+                                    // Create form group with label and input
+                                    const formGroup = $('<div>').addClass('form-group').append(
+                                        $('<label>').attr('for', inputId).text(arg.label), // Added the 'for' attribute to label
+                                        input
+                                    );
 
-                                cardBody.append(formGroup);
+                                    cardBody.append(formGroup);
 
-                                // Track input fields
-                                inputFieldMap[inputId] = input;
+                                    // Track input fields
+                                    inputFieldMap[inputId] = input;
+                                }
                             });
 
                             // Create the action button
@@ -581,6 +585,8 @@
 
                         // Validate required fields
                         config.args.forEach(arg => {
+                            if (arg.visible === false) return; // Skip hidden arguments
+
                             const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`;
                             const input = $(`#${inputId}`);  // Use the dynamically generated ID
                             const label = $(`label[for="${inputId}"]`);
@@ -634,15 +640,23 @@
                             return; // Prevent function call if fields are missing
                         }
 
-                        // Invoke the function if all required fields are filled
-                        const inputs = config.args.map(arg => $(`#input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`).val());
-                        console.log(`Invoking ${functionName} with inputs:`, inputs);
+                        // Gather all arguments in order, including hidden ones with default values
+                        const allArgs = config.args.map(arg => {
+                            if (arg.visible === false) {
+                                return arg.defaultValue || ''; // Use default value or empty string
+                            } else {
+                                const inputId = `input-${config.functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                                return $(`#${inputId}`).val();
+                            }
+                        });
 
-                        // Invoke the real user server-side function
-                        server[functionName](...inputs);
+                        console.log(`Invoking ${functionName} with arguments:`, allArgs);
 
-                        // Save the user properties
-                        saveUserPropertiesForFunction(functionName, inputs);
+                        // Invoke the server-side function with all arguments
+                        server[functionName](...allArgs);
+
+                        // Save the user properties for visible arguments only
+                        saveUserPropertiesForFunction(functionName, config.args);
                     } catch (error) {
                         console.error("Error handling button click:", error.message);
                         alert("An error occurred while processing your request. Please check the console for more details.");
@@ -653,16 +667,15 @@
                  * Saves user properties for a specific function by sending them to the server.
                  *
                  * @param {string} functionName - The name of the function.
-                 * @param {Array} inputs - The input values to save.
+                 * @param {Array} args - The list of arguments for the function.
                  */
-                function saveUserPropertiesForFunction(functionName, inputs) {
+                function saveUserPropertiesForFunction(functionName, args) {
                     try {
                         const properties = {};
-                        inputs.forEach((inputValue, index) => {
-                            const argName = specificButtonConfigs
-                                .find(config => config.functionName === functionName)
-                                .args[index].label;
-                            properties[`input-${functionName}-${argName}`] = inputValue;
+                        args.forEach(arg => {
+                            if (arg.visible === false) return; // Skip hidden arguments
+                            const inputId = `input-${functionName}-${arg.label.replace(/\s+/g, '-')}`;
+                            properties[inputId] = $(`#${inputId}`).val();
                         });
 
                         // Check if the server has the saveUserProperties function
@@ -685,7 +698,7 @@
                  * @param {string} type - The type of log message (e.g., 'info', 'error').
                  * @param {number} maxLines - The maximum number of log lines to keep.
                  */
-                function addToLogList(message, type = 'info', maxLines = 1000) {
+                function addToLogList(message, type = 'info', maxLines = 3000) {
                     const MAX_MESSAGE_LENGTH = 100; // Define the maximum length for a log message
                     const now = new Date();
                     const timestamp = now.toISOString();
@@ -901,26 +914,9 @@
                     }
                 }
 
-                /**
-                 * Toggles the expansion and collapse of a log message.
-                 *
-                 * @param {jQuery} messageDiv - The jQuery object representing the log message div.
-                 */
-                function toggleLogMessage(messageDiv) {
-                    const isTruncated = messageDiv.hasClass('truncated');
 
-                    if (isTruncated) {
-                        messageDiv.removeClass('truncated').addClass('expanded');
-                        messageDiv.attr('aria-expanded', 'true');
-                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-right').addClass('bi-chevron-up');
-                    } else {
-                        messageDiv.removeClass('expanded').addClass('truncated');
-                        messageDiv.attr('aria-expanded', 'false');
-                        messageDiv.find('.toggle-arrow i').removeClass('bi-chevron-up').addClass('bi-chevron-right');
-                    }
-
-                    updateExpandAllCheckbox();
-                }
+                <!-- Include the external document.ready() function -->
+                <?!= include('main') ?>
 
                 // Expose public methods
                 return {
@@ -929,29 +925,9 @@
                 };
             })();
 
-            // Document ready function to initialize the LogInterface
-            $(document).ready(function () {
-                try {
-                    // Add button configurations
-                    LogInterface.addButtonConfig({
-                        label: 'Start Process',
-                        functionName: 'longRunningFunction',
-                        groupLabel: 'Process Controls',
-                        args: [
-                            { label: 'Start Date', type: 'date' },
-                            { label: 'End Date', type: 'date', required: true }
-                        ]
-                    });
-
-                    // Initialize the LogInterface
-                    LogInterface.init();
-                } catch (error) {
-                    console.error("Error during document ready:", error.message);
-                    alert("An error occurred during setup. Please check the console for more details.");
-                }
-            });
         })(jQuery);
     </script>
+
 </body>
 
 </html>

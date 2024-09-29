@@ -1,5 +1,5 @@
 function openLoggingSidebar() {
-  const html = HtmlService.createTemplateFromFile('sidebar').evaluate()
+  const html = HtmlService.createTemplateFromFile('sidebar/sidebar').evaluate()
     .setTitle('Logging Sidebar')
     .setWidth(300);
   SpreadsheetApp.getUi().showSidebar(html);

@@ -233,10 +233,25 @@
             <!-- Config Tab -->
             <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
                 <div id="configContent" class="config-content">
-                    <p>Loading configuration...</p>
+                    <form id="configForm">
+                        <!-- Dynamic configuration fields will be inserted here -->
+                    </form>
+                    <button id="saveConfigBtn" class="btn btn-success mt-3">Save Configuration</button>
                 </div>
             </div>
+
         </div>
+        <!-- Toast Container -->
+    <div aria-live="polite" aria-atomic="true" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
+        <div id="saveSuccessToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    Configuration saved successfully!
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
     </div>
 
     <!-- Bootstrap 5 JS, Popper.js -->
@@ -391,6 +406,8 @@
                 const specificButtonConfigs = [];
                 const inputFieldMap = {}; // Used to track shared input fields by argument name
                 let lastLogTimestamp = null; // Declaring lastLogTimestamp here
+                let localAllowedProperties = []; 
+
 
                 /**
                  * Initializes Bootstrap tooltips.
@@ -429,12 +446,39 @@
 
                         // Initialize Bootstrap tooltips
                         initializeTooltips();
+
+                        // Fetch the allowed properties and then fetch the configuration properties
+                        fetchAllowedProperties().then(() => {
+                            // Now that allowed properties are fetched, fetch the configuration properties when the Config tab is opened
+                            $(document).on('shown.bs.tab', '#config-tab', function () {
+                                // Hide the save button until config is loaded
+                                $('#saveConfigBtn').hide();
+
+                                google.script.run
+                                    .withSuccessHandler(updateConfigTab)
+                                    .sb_getConfigProperties();
+                            });
+                        });
                     } catch (error) {
                         console.error("Initialization error:", error.message);
                         alert("An error occurred during initialization. Please check the console for more details.");
                     }
                 }
-
+                function fetchAllowedProperties() {
+                    return new Promise((resolve, reject) => {
+                        google.script.run
+                            .withSuccessHandler((properties) => {
+                                localAllowedProperties = properties;
+                                resolve();
+                            })
+                            .withFailureHandler((error) => {
+                                console.error("Failed to fetch allowed properties:", error);
+                                alert("Failed to load configuration properties. Please try again.");
+                                reject(error);
+                            })
+                            .sb_getAllowedProperties();
+                    });
+                }
                 /**
                  * Loads all configurations for each button configuration.
                  * This function iterates through each button config and loads its properties.
@@ -496,22 +540,102 @@
                  */
                 function updateConfigTab(properties) {
                     if (typeof properties === 'string') {
-                        // If the server returns the message "No configuration found", display it
+                        // Handle no configuration found
                         $('#configContent').html(`<p style="color: red;">${properties}</p>`);
                     } else {
-                        // Else populate the form with the user properties
-                        $('#configContent').empty(); // Clear the content
-                        for (let key in properties) {
-                            const inputId = key.split('_')[1];  // Assuming the format is functionName_arg1, functionName_arg2, etc.
-                            $('#configContent').append(`
-                                <div class="form-group">
-                                    <label for="input-${inputId}">${inputId}</label>
-                                    <input id="input-${inputId}" class="form-control" value="${properties[key]}">
-                                </div>
-                            `);
-                        }
+                        // Use localAllowedProperties
+                        $('#configContent').empty(); // Clear existing content
+                        const form = $('<form>').attr('id', 'configForm');
+
+                        localAllowedProperties.forEach(prop => {
+                            const formGroup = $('<div>').addClass('form-group mb-3');
+                            const label = $('<label>')
+                                .attr('for', prop.key)
+                                .attr('data-bs-toggle', 'tooltip')
+                                .attr('title', prop.tooltip || '')
+                                .text(prop.label + (prop.required ? ' *' : ''));
+
+                            let input;
+
+                            switch (prop.type) {
+                                case 'textarea':
+                                    input = $('<textarea>')
+                                        .addClass('form-control')
+                                        .attr('id', prop.key)
+                                        .attr('required', prop.required);
+                                    break;
+                                case 'select':
+                                    input = $('<select>')
+                                        .addClass('form-select')
+                                        .attr('id', prop.key)
+                                        .attr('required', prop.required);
+                                    // Populate options if any
+                                    if (prop.options && Array.isArray(prop.options)) {
+                                        prop.options.forEach(option => {
+                                            input.append($('<option>').val(option).text(option));
+                                        });
+                                    }
+                                    break;
+                                default:
+                                    input = $('<input>')
+                                        .attr('type', prop.type)
+                                        .addClass('form-control')
+                                        .attr('id', prop.key)
+                                        .attr('required', prop.required);
+                            }
+
+                            // Set the current value if available
+                            if (properties[prop.key]) {
+                                input.val(properties[prop.key]);
+                            }
+
+                            formGroup.append(label, input);
+                            form.append(formGroup);
+                        });
+
+                        $('#configContent').append(form);
+                        $('#configContent').append(`<button id="saveConfigBtn" class="btn btn-success">Save Configuration</button>`);
+
+                        // Initialize tooltips
+                        initializeTooltips();
+
+                        // Bind the saveConfigBtn click event
+                        $('#saveConfigBtn').click(function(event) {
+                            event.preventDefault(); // Prevent form submission
+                            saveConfigProperties();
+                        });
                     }
                 }
+
+                /**
+                 * Gathers configuration data from the form and sends it to the server to save.
+                 */
+                function saveConfigProperties() {
+                    try {
+                        const configData = localAllowedProperties.map(prop => {
+                            return {
+                                key: prop.key,
+                                value: $(`#${prop.key}`).val()
+                            };
+                        });
+
+                        // Send the configuration data to the server
+                        google.script.run
+                            .withSuccessHandler((message) => {
+                                addToLogList(message, 'info');
+                            })
+                            .withFailureHandler((error) => {
+                                console.error("Failed to save configurations:", error);
+                                alert(`Failed to save configurations. Please try again. Error: ${error.message}`);
+                            })
+                            .sb_saveConfigProperties(configData);
+                    } catch (error) {
+                        console.error("Error saving configurations:", error.message);
+                        alert("An error occurred while saving configurations. Please check the console for more details.");
+                    }
+                }
+
+
 
                 /**
                  * Adds a new button configuration to the specificButtonConfigs array.

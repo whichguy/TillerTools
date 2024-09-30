@@ -1,5 +1,38 @@
 var LOG_ID = [];
 
+// Define allowed properties with metadata
+const ALLOWED_PROPERTIES = [
+    {
+        key: 'STRIPE_API_KEY',
+        label: 'Stripe API Key',
+        type: 'password', // 'text', 'password', 'textarea', 'select', etc.
+        required: true,
+        tooltip: 'Your secret Stripe API key.'
+    },
+    {
+        key: 'RECEIPTS_FOLDER_URL',
+        label: 'Receipts Folder URL',
+        type: 'url',
+        required: true,
+        tooltip: 'The Google Drive folder URL where receipts will be saved.'
+    },
+    {
+        key: 'STRIPE_PAYOUT_DESCRIPTION_PREFIX',
+        label: 'Stripe Payout Description Prefix',
+        type: 'text',
+        required: true,
+        tooltip: 'Prefix for payout descriptions in the sheet.'
+    },
+    {
+        key: 'SUMMARY_EMAIL',
+        label: 'Summary Email',
+        type: 'email',
+        required: true,
+        tooltip: 'Email address to receive summary reports.'
+    }
+    // Add more properties as needed
+];
+
 /**
  * Invokes a function by its name and function ID while ensuring the function runs within the global scope.
  * @param {string} functionName - The name of the function to invoke.
@@ -34,16 +67,16 @@ function sb_invokeWithId(functionName, functionId, ...args) {
 }
 
 /**
- * Stores input arguments in user properties with the function name as the prefix.
+ * Stores input arguments in document properties with the function name as the prefix.
  * @param {string} functionName - The name of the function.
  * @param {Array} args - The list of arguments.
  */
 function sb_storeUserProperties(functionName, args) {
-    const userProperties = PropertiesService.getUserProperties();
+    const docProperties = PropertiesService.getDocumentProperties();
     args.forEach((value, index) => {
-        userProperties.setProperty(`${functionName}_arg${index + 1}`, value);
+        docProperties.setProperty(`${functionName}_arg${index + 1}`, value);
     });
-    console.log(`Stored properties for ${functionName}:`, JSON.stringify(args));
+    console.info(`Stored properties for ${functionName}:`, JSON.stringify(args));
 }
 
 /**
@@ -52,8 +85,8 @@ function sb_storeUserProperties(functionName, args) {
  * @returns {Object|string} - The properties for the function or a message if no properties found.
  */
 function sb_getUserPropertiesForFunction(functionName) {
-    const userProperties = PropertiesService.getUserProperties();
-    const allProps = userProperties.getProperties();
+    const docProperties = PropertiesService.getDocumentProperties();
+    const allProps = docProperties.getProperties();
 
     const functionProps = {};
     for (let key in allProps) {
@@ -67,6 +100,8 @@ function sb_getUserPropertiesForFunction(functionName) {
     }
     return functionProps;
 }
+
+
 
 /**
  * Clears the cache for the current script.
@@ -202,78 +237,67 @@ function sb_getProcessStatus(id) {
 }
 
 /**
- * Retrieves configuration properties from the script properties.
- * @returns {Array} - An array of configuration objects.
- */
-function sb_getConfigProperties() {
-    const properties = PropertiesService.getScriptProperties().getProperties();
-    const configArray = [];
-
-    for (const key in properties) {
-        let type = 'text';
-        let label = key;
-        let value = properties[key];
-        let options = [];
-
-        const underscoreIndex = key.indexOf('_');
-
-        if (underscoreIndex > 0) {
-            const possibleType = key.substring(0, underscoreIndex).toLowerCase();
-            const possibleLabel = key.substring(underscoreIndex + 1);
-
-            const recognizedTypes = ['date', 'number', 'select', 'textarea'];
-            if (recognizedTypes.includes(possibleType)) {
-                type = possibleType;
-                label = possibleLabel.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, function(str) {
-                    return str.toUpperCase();
-                });
-            }
-        }
-
-        if (type === 'select') {
-            options = ['Option 1', 'Option 2', 'Option 3'];
-        }
-
-        configArray.push({ name: key, label: label, type: type, value: value, options: options });
-    }
-
-    return configArray;
-}
-
-/**
  * Saves user properties for a specific function.
  * @param {string} functionName - The name of the function.
- * @param {Array} inputs - The input values to be saved.
+ * @param {Object} properties - An object containing key-value pairs of properties.
+ * @returns {string} - Confirmation message.
  */
-function sb_saveUserPropertiesForFunction(functionName, inputs) {
-    const properties = {};
-
-    inputs.forEach((inputValue, index) => {
-        const argName = specificButtonConfigs.find(config => config.functionName === functionName).args[index].label;
-        properties[`input-${functionName}-${argName}`] = inputValue;
-    });
-
-    if (typeof server.saveUserProperties === 'function') {
-        server.saveUserProperties(functionName, properties)
-            .withSuccessHandler(() => {
-                console.log(`Properties for ${functionName} saved successfully.`);
-            })
-            .withFailureHandler(error => {
-                console.error(`Error saving properties for ${functionName}:`, error);
-            });
-    } else {
-        console.warn(`saveUserProperties is not a function on the server. Properties for ${functionName} will not be saved.`);
+function sb_saveUserPropertiesForFunction(functionName, properties) {
+    const docProperties = PropertiesService.getDocumentProperties();
+    for (let key in properties) {
+        docProperties.setProperty(`${functionName}_${key}`, properties[key]);
     }
+    console.info(`Saved user properties for ${functionName}:`, JSON.stringify(properties));
+    return "User properties saved successfully.";
 }
+
 
 /**
  * Saves configuration properties sent from the client.
+ * Ensures only predefined properties are saved.
  * @param {Array} configData - Array of key-value pairs to be saved.
  * @returns {string} - Confirmation message.
  */
 function sb_saveConfigProperties(configData) {
+    const allowedKeys = ALLOWED_PROPERTIES.map(prop => prop.key);
+    const docProperties = PropertiesService.getDocumentProperties();
+    const propertiesToSave = {};
+
     configData.forEach(function(item) {
-        PropertiesService.getScriptProperties().setProperty(item.key, item.value);
+        if (allowedKeys.includes(item.key)) {
+            propertiesToSave[item.key] = item.value;
+        } else {
+            console.warn(`Attempt to set unauthorized property: ${item.key}`);
+        }
     });
+
+    docProperties.setProperties(propertiesToSave);
+    console.info("Configurations saved successfully:", JSON.stringify(propertiesToSave));
     return "Configurations saved successfully.";
 }
+
+/**
+ * Retrieves the list of allowed configuration properties.
+ * @returns {Array} - Array of allowed property objects.
+ */
+function sb_getAllowedProperties() {
+    // Return a deep copy to prevent client-side manipulation
+    return JSON.parse(JSON.stringify(ALLOWED_PROPERTIES));
+}
+
+/**
+ * Retrieves the current configuration settings from document properties.
+ * @returns {Object} - Configuration object containing allowed properties.
+ */
+function sb_getConfigProperties() {
+    const allowedKeys = ALLOWED_PROPERTIES.map(prop => prop.key);
+    const docProperties = PropertiesService.getDocumentProperties();
+    const currentConfig = {};
+
+    allowedKeys.forEach(key => {
+        currentConfig[key] = docProperties.getProperty(key) || '';
+    });
+
+    return currentConfig;
+}
+

@@ -1,37 +1,41 @@
 var LOG_ID = [];
 
-// Define allowed properties with metadata
 const ALLOWED_PROPERTIES = [
     {
         key: 'STRIPE_API_KEY',
         label: 'Stripe API Key',
         type: 'password', // 'text', 'password', 'textarea', 'select', etc.
         required: true,
-        tooltip: 'Your secret Stripe API key.'
+        tooltip: 'Your secret Stripe API key.',
+        scope: 'script' // Allowed scopes: 'script'
     },
     {
         key: 'RECEIPTS_FOLDER_URL',
         label: 'Receipts Folder URL',
         type: 'url',
         required: true,
-        tooltip: 'The Google Drive folder URL where receipts will be saved.'
+        tooltip: 'The Google Drive folder URL where receipts will be saved.',
+        scope: 'document' // Allowed scopes: 'user', 'document'
     },
     {
         key: 'STRIPE_PAYOUT_DESCRIPTION_PREFIX',
         label: 'Stripe Payout Description Prefix',
         type: 'text',
         required: true,
-        tooltip: 'Prefix for payout descriptions in the sheet.'
+        tooltip: 'Prefix for payout descriptions in the sheet.',
+        scope: 'user' // Allowed scopes: 'user'
     },
     {
         key: 'SUMMARY_EMAIL',
         label: 'Summary Email',
         type: 'email',
         required: true,
-        tooltip: 'Email address to receive summary reports.'
+        tooltip: 'Email address to receive summary reports.',
+        scope: 'document' // Allowed scopes: 'user', 'document'
     }
     // Add more properties as needed
 ];
+
 
 /**
  * Invokes a function by its name and function ID while ensuring the function runs within the global scope.
@@ -254,50 +258,165 @@ function sb_saveUserPropertiesForFunction(functionName, properties) {
 
 /**
  * Saves configuration properties sent from the client.
- * Ensures only predefined properties are saved.
- * @param {Array} configData - Array of key-value pairs to be saved.
+ * Ensures only predefined properties are saved and respects their allowed scopes.
+ * @param {Array} configData - Array of key-value-scope objects to be saved. Each item should have 'key', 'value', and 'scope'.
  * @returns {string} - Confirmation message.
  */
 function sb_saveConfigProperties(configData) {
-    const allowedKeys = ALLOWED_PROPERTIES.map(prop => prop.key);
-    const docProperties = PropertiesService.getDocumentProperties();
-    const propertiesToSave = {};
+    configData.forEach(({ key, value, scope }) => {
+        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === key);
 
-    configData.forEach(function(item) {
-        if (allowedKeys.includes(item.key)) {
-            propertiesToSave[item.key] = item.value;
-        } else {
-            console.warn(`Attempt to set unauthorized property: ${item.key}`);
+        if (!propertyDef) {
+            console.warn(`Attempt to set unauthorized property: ${key}`);
+            return; // Skip unauthorized properties
+        }
+
+        try {
+            const confirmation = ConfigManager.setProperty(key, value, scope);
+            console.info(confirmation);
+        } catch (error) {
+            console.error(`Error setting property "${key}": ${error.message}`);
         }
     });
 
-    docProperties.setProperties(propertiesToSave);
-    console.info("Configurations saved successfully:", JSON.stringify(propertiesToSave));
     return "Configurations saved successfully.";
 }
 
+
 /**
- * Retrieves the list of allowed configuration properties.
- * @returns {Array} - Array of allowed property objects.
+ * Retrieves the value of a property by its name.
+ * @param {string} propertyName - The name of the property to retrieve.
+ * @returns {string|null} - The value of the property or null if not found.
  */
-function sb_getAllowedProperties() {
-    // Return a deep copy to prevent client-side manipulation
-    return JSON.parse(JSON.stringify(ALLOWED_PROPERTIES));
+function sb_getProperty(propertyName) {
+    return ConfigManager.getProperty(propertyName);
 }
 
 /**
- * Retrieves the current configuration settings from document properties.
- * @returns {Object} - Configuration object containing allowed properties.
+ * Retrieves the current configuration settings for all allowed properties.
+ * Each property includes its full definition and current value.
+ * @returns {Array<Object>} - Array of property objects containing metadata and current values.
  */
 function sb_getConfigProperties() {
-    const allowedKeys = ALLOWED_PROPERTIES.map(prop => prop.key);
-    const docProperties = PropertiesService.getDocumentProperties();
-    const currentConfig = {};
-
-    allowedKeys.forEach(key => {
-        currentConfig[key] = docProperties.getProperty(key) || '';
-    });
-
-    return currentConfig;
+    return ALLOWED_PROPERTIES.map(prop => ({
+        ...prop,
+        value: sb_getProperty(prop.key) || ''
+    }));
 }
+// ===========================
+// Private Configuration Manager
+// ===========================
+const ConfigManager = (() => {
+    /**
+     * Retrieves the value of a property by checking allowed scopes in order.
+     * @param {string} propertyName - The name of the property to retrieve.
+     * @returns {string|null} - The value of the property or null if not found.
+     */
+    const getProperty = (propertyName) => {
+        // Find the property definition from ALLOWED_PROPERTIES
+        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
+        if (!propertyDef) {
+            console.warn(`Property "${propertyName}" is not allowed.`);
+            return null;
+        }
+
+        // Determine the scopes to check based on allowed scope
+        const allowedScopes = (() => {
+            switch (propertyDef.scope.toLowerCase()) {
+                case 'script':
+                    return ['user', 'document', 'script'];
+                case 'document':
+                    return ['user', 'document'];
+                case 'user':
+                    return ['user'];
+                default:
+                    console.warn(`Unknown scope "${propertyDef.scope}" for property "${propertyName}".`);
+                    return [];
+            }
+        })();
+
+        for (const scope of allowedScopes) {
+            const value = (() => {
+                switch (scope) {
+                    case 'user':
+                        return PropertiesService.getUserProperties().getProperty(propertyName);
+                    case 'document':
+                        return PropertiesService.getDocumentProperties().getProperty(propertyName);
+                    case 'script':
+                        return PropertiesService.getScriptProperties().getProperty(propertyName);
+                    default:
+                        return null;
+                }
+            })();
+
+            if (value !== null) {
+                return value;
+            }
+        }
+
+        // Property not found in any allowed scope
+        return null;
+    };
+
+    /**
+     * Sets the value of a property in the specified scope after validating allowed scopes.
+     * @param {string} propertyName - The name of the property to set.
+     * @param {string} value - The value to set for the property.
+     * @param {string} [scope='user'] - The scope to set the property in ('user', 'document', 'script').
+     * @returns {string} - Confirmation message.
+     * @throws Will throw an error if the property is not allowed or scope is invalid.
+     */
+    const setProperty = (propertyName, value, scope = 'user') => {
+        // Find the property definition from ALLOWED_PROPERTIES
+        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
+        if (!propertyDef) {
+            throw new Error(`Property "${propertyName}" is not allowed.`);
+        }
+
+        // Normalize scope input
+        const normalizedScope = scope.toLowerCase();
+
+        // Determine allowed scopes for setting based on property's allowed scope
+        const permittedScopes = (() => {
+            switch (propertyDef.scope.toLowerCase()) {
+                case 'script':
+                    return ['user', 'document', 'script'];
+                case 'document':
+                    return ['user', 'document'];
+                case 'user':
+                    return ['user'];
+                default:
+                    return [];
+            }
+        })();
+
+        if (!permittedScopes.includes(normalizedScope)) {
+            throw new Error(`Scope "${scope}" is not permitted for property "${propertyName}". Allowed scopes: ${permittedScopes.join(', ')}.`);
+        }
+
+        // Set the property in the specified scope
+        switch (normalizedScope) {
+            case 'user':
+                PropertiesService.getUserProperties().setProperty(propertyName, value);
+                break;
+            case 'document':
+                PropertiesService.getDocumentProperties().setProperty(propertyName, value);
+                break;
+            case 'script':
+                PropertiesService.getScriptProperties().setProperty(propertyName, value);
+                break;
+            default:
+                throw new Error(`Invalid scope "${scope}". Valid scopes are 'user', 'document', 'script'.`);
+        }
+
+        return `Property "${propertyName}" set successfully in "${normalizedScope}" scope.`;
+    };
+
+    // Expose only internal functions if needed, or keep them completely private
+    return {
+        getProperty,
+        setProperty
+    };
+})();
+
 

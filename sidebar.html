@@ -144,27 +144,146 @@
             border-radius: 5px;
         }
 
-        /* Individual config item styling */
         .config-item {
             margin-bottom: 1rem;
         }
 
-        /* Config item label styling */
         .config-item label {
             display: block;
             margin-bottom: 0.3rem;
-            font-weight: bold;
+            font-weight: normal; /* Changed from bold to normal */
         }
 
-        /* Config item input fields styling */
-        .config-item input,
-        .config-item select,
-        .config-item textarea {
+        .config-item .input-group {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .config-item .form-control,
+        .config-item .form-select {
+            flex: 1 1 auto;
+        }
+
+        .config-item .scope-select {
+            width: auto;
+            flex: 0 0 auto;
+            max-width: 120px;
+            font-size: 0.875rem;
+            border-radius: 0 0.25rem 0.25rem 0;
+            border-left: none;
+            background-color: #f8f9fa;
+            color: #6c757d;
+            cursor: pointer;
+            padding-right: 1.75rem;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 16px 12px;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .config-item .scope-select:focus {
+            border-color: #86b7fe;
+            outline: 0;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+
+        .config-item .input-group-append {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .config-item .input-group-append .scope-select {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        /* New styles for connected dropdowns */
+        .input-group .btn-outline-secondary {
+            border-radius: 0.25rem 0 0 0.25rem;
+        }
+
+        .input-group .form-control {
+            border-radius: 0;
+        }
+
+        .input-group .scope-select {
+            border-radius: 0 0.25rem 0.25rem 0;
+            border-left: none;
+        }
+
+        #saveConfigBtn {
+            background-color: #4285f4;
+            border-color: #4285f4;
+        }
+
+        #saveConfigBtn:hover {
+            background-color: #3367d6;
+            border-color: #3367d6;
+        }
+
+        /* Tooltip container */
+        .tooltip {    
+            --bs-tooltip-max-width: 200px; /* Adjust this value based on your sidebar width */
+            --bs-tooltip-color: #fff;
+            --bs-tooltip-bg: rgba(0, 0, 0, 0.8);
+            --bs-tooltip-opacity: 1;
+        }
+
+        /* Tooltip inner */
+        .tooltip-inner {
+            max-width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            font-size: 0.875rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            white-space: normal;
+        }
+
+        /* Optional: Adjust arrow position for left-aligned text */
+        .bs-tooltip-auto[data-popper-placement^=top] .tooltip-arrow::before, 
+        .bs-tooltip-top .tooltip-arrow::before {
+            left: 10px;
+        }
+
+        /* Ensure the tooltip doesn't extend beyond the sidebar */
+        .sidebar .tooltip {
+            max-width: 90%; /* Adjust as needed */
+            margin-left: 5%;
+            margin-right: 5%;
+        }
+        /* Toast container styling */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            max-width: calc(100% - 40px); /* Adjust based on your sidebar padding */
+            width: auto;
+            z-index: 1055;
+        }
+
+        /* Toast styling */
+        .toast {
             width: 100%;
-            padding: 0.4rem;
-            font-size: 1rem;
-            border: 1px solid #cccccc;
-            border-radius: 3px;
+            max-width: 300px; /* Adjust this value based on your sidebar width */
+            margin: 0 auto;
+            font-size: 0.875rem;
+        }
+
+        .toast-body {
+            padding: 0.5rem 0.75rem;
+            word-wrap: break-word;
+        }
+
+        /* Ensure the close button doesn't push content */
+        .toast .btn-close {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
         }
     </style>
 </head>
@@ -407,7 +526,7 @@
                 const inputFieldMap = {}; // Used to track shared input fields by argument name
                 let lastLogTimestamp = null; // Declaring lastLogTimestamp here
                 let localAllowedProperties = []; 
-
+                let configTabInitialized = false;
 
                 /**
                  * Initializes Bootstrap tooltips.
@@ -447,23 +566,41 @@
                         // Initialize Bootstrap tooltips
                         initializeTooltips();
 
-                        // Fetch the allowed properties and then fetch the configuration properties
-                        fetchAllowedProperties().then(() => {
-                            // Now that allowed properties are fetched, fetch the configuration properties when the Config tab is opened
-                            $(document).on('shown.bs.tab', '#config-tab', function () {
-                                // Hide the save button until config is loaded
-                                $('#saveConfigBtn').hide();
-
-                                google.script.run
-                                    .withSuccessHandler(updateConfigTab)
-                                    .sb_getConfigProperties();
-                            });
+                        // Set up the config tab click handler
+                        $('#config-tab').on('shown.bs.tab', function (e) {
+                            if (!configTabInitialized) {
+                                initializeConfigTab();
+                            }
                         });
                     } catch (error) {
                         console.error("Initialization error:", error.message);
                         alert("An error occurred during initialization. Please check the console for more details.");
                     }
                 }
+
+                function initializeConfigTab() {
+                    $('#saveConfigBtn').hide();
+                    $('#configContent').html('<p>Loading configuration...</p>');
+                    
+                    fetchAllowedProperties()
+                        .then(() => {
+                            return new Promise((resolve, reject) => {
+                                google.script.run
+                                    .withSuccessHandler(resolve)
+                                    .withFailureHandler(reject)
+                                    .sb_getConfigProperties();
+                            });
+                        })
+                        .then(updateConfigTab)
+                        .catch(error => {
+                            console.error("Error initializing config tab:", error);
+                            $('#configContent').html('<p style="color: red;">Error loading configuration. Please try again.</p>');
+                        })
+                        .finally(() => {
+                            configTabInitialized = true;
+                        });
+                }
+
                 function fetchAllowedProperties() {
                     return new Promise((resolve, reject) => {
                         google.script.run
@@ -476,9 +613,10 @@
                                 alert("Failed to load configuration properties. Please try again.");
                                 reject(error);
                             })
-                            .sb_getAllowedProperties();
+                            .sb_getConfigProperties(); // Ensure this matches the server-side function name
                     });
                 }
+
                 /**
                  * Loads all configurations for each button configuration.
                  * This function iterates through each button config and loads its properties.
@@ -540,36 +678,28 @@
                  */
                 function updateConfigTab(properties) {
                     if (typeof properties === 'string') {
-                        // Handle no configuration found
                         $('#configContent').html(`<p style="color: red;">${properties}</p>`);
                     } else {
-                        // Use localAllowedProperties
-                        $('#configContent').empty(); // Clear existing content
+                        $('#configContent').empty();
                         const form = $('<form>').attr('id', 'configForm');
 
-                        localAllowedProperties.forEach(prop => {
-                            const formGroup = $('<div>').addClass('form-group mb-3');
+                        properties.forEach(prop => {
+                            const configItem = $('<div>').addClass('config-item');
                             const label = $('<label>')
                                 .attr('for', prop.key)
                                 .attr('data-bs-toggle', 'tooltip')
                                 .attr('title', prop.tooltip || '')
                                 .text(prop.label + (prop.required ? ' *' : ''));
 
-                            let input;
+                            const inputGroup = $('<div>').addClass('input-group');
 
+                            let input;
                             switch (prop.type) {
                                 case 'textarea':
-                                    input = $('<textarea>')
-                                        .addClass('form-control')
-                                        .attr('id', prop.key)
-                                        .attr('required', prop.required);
+                                    input = $('<textarea>');
                                     break;
                                 case 'select':
-                                    input = $('<select>')
-                                        .addClass('form-select')
-                                        .attr('id', prop.key)
-                                        .attr('required', prop.required);
-                                    // Populate options if any
+                                    input = $('<select>');
                                     if (prop.options && Array.isArray(prop.options)) {
                                         prop.options.forEach(option => {
                                             input.append($('<option>').val(option).text(option));
@@ -577,35 +707,59 @@
                                     }
                                     break;
                                 default:
-                                    input = $('<input>')
-                                        .attr('type', prop.type)
-                                        .addClass('form-control')
-                                        .attr('id', prop.key)
-                                        .attr('required', prop.required);
+                                    input = $('<input>').attr('type', prop.type);
+                            }
+                            input.addClass('form-control')
+                                .attr('id', prop.key)
+                                .attr('required', prop.required);
+
+                            // Set the value from the properties
+                            if (prop.value !== undefined) {
+                                input.val(prop.value);
                             }
 
-                            // Set the current value if available
-                            if (properties[prop.key]) {
-                                input.val(properties[prop.key]);
-                            }
+                            const scopeSelect = $('<select>')
+                                .addClass('form-select form-select-sm scope-select')
+                                .attr('id', `${prop.key}-scope`)
+                                .attr('required', true)
+                                .attr('aria-label', 'Select scope');
 
-                            formGroup.append(label, input);
-                            form.append(formGroup);
+                            const allowedScopes = getAllowedScopes(prop.scope);
+
+                            allowedScopes.forEach(scopeOption => {
+                                const option = $('<option>').val(scopeOption).text(scopeOption.charAt(0).toUpperCase() + scopeOption.slice(1));
+                                if (scopeOption === prop.scope) {
+                                    option.attr('selected', 'selected');
+                                }
+                                scopeSelect.append(option);
+                            });
+
+                            inputGroup.append(input, scopeSelect);
+                            configItem.append(label, inputGroup);
+                            form.append(configItem);
                         });
 
                         $('#configContent').append(form);
-                        $('#configContent').append(`<button id="saveConfigBtn" class="btn btn-success">Save Configuration</button>`);
+                        $('#configContent').append(`<button id="saveConfigBtn" class="btn btn-primary mt-3">Save Configuration</button>`);
 
-                        // Initialize tooltips
                         initializeTooltips();
 
-                        // Bind the saveConfigBtn click event
                         $('#saveConfigBtn').click(function(event) {
-                            event.preventDefault(); // Prevent form submission
+                            event.preventDefault();
                             saveConfigProperties();
                         });
+
+                        $('#saveConfigBtn').show();
                     }
                 }
+
+                function initializeTooltips() {
+                    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
+                }
+
 
                 /**
                  * Gathers configuration data from the form and sends it to the server to save.
@@ -613,9 +767,12 @@
                 function saveConfigProperties() {
                     try {
                         const configData = localAllowedProperties.map(prop => {
+                            const value = $(`#${prop.key}`).val();
+                            const scope = $(`#${prop.key}-scope`).val();
                             return {
                                 key: prop.key,
-                                value: $(`#${prop.key}`).val()
+                                value: value,
+                                scope: scope
                             };
                         });
 
@@ -623,6 +780,7 @@
                         google.script.run
                             .withSuccessHandler((message) => {
                                 addToLogList(message, 'info');
+                                showToast(); // Display success toast
                             })
                             .withFailureHandler((error) => {
                                 console.error("Failed to save configurations:", error);
@@ -636,6 +794,15 @@
                 }
 
 
+
+                /**
+                 * Shows a Bootstrap toast notification.
+                 */
+                function showToast() {
+                    const toastEl = $('#saveSuccessToast');
+                    const toast = new bootstrap.Toast(toastEl[0], { delay: 3000 });
+                    toast.show();
+                }
 
                 /**
                  * Adds a new button configuration to the specificButtonConfigs array.
@@ -857,6 +1024,24 @@
                         alert("An error occurred while processing your request. Please check the console for more details.");
                     }
                 }
+               /**
+                * Determines the allowed scopes for a property based on its defined scope.
+                *
+                * @param {string} propScope - The defined scope of the property.
+                * @returns {Array<string>} - Array of allowed scope strings.
+                */
+               function getAllowedScopes(propScope) {
+                   switch (propScope.toLowerCase()) {
+                       case 'script':
+                           return ['user', 'document', 'script'];
+                       case 'document':
+                           return ['user', 'document'];
+                       case 'user':
+                           return ['user'];
+                       default:
+                           return [];
+                   }
+               }
 
                 /**
                  * Saves user properties for a specific function by sending them to the server.
@@ -1111,7 +1296,7 @@
                 }
 
 
-                <!-- Include the external document.ready() function -->
+                // Include the external document.ready() function 
                 <?!= sb_include('main') ?>
 
                 // Expose public methods

@@ -1,41 +1,5 @@
 var LOG_ID = [];
 
-const ALLOWED_PROPERTIES = [
-    {
-        key: 'STRIPE_API_KEY',
-        label: 'Stripe API Key',
-        type: 'password', // 'text', 'password', 'textarea', 'select', etc.
-        required: true,
-        tooltip: 'Your secret Stripe API key.',
-        scope: 'script' // Allowed scopes: 'script'
-    },
-    {
-        key: 'RECEIPTS_FOLDER_URL',
-        label: 'Receipts Folder URL',
-        type: 'url',
-        required: true,
-        tooltip: 'The Google Drive folder URL where receipts will be saved.',
-        scope: 'document' // Allowed scopes: 'user', 'document'
-    },
-    {
-        key: 'STRIPE_PAYOUT_DESCRIPTION_PREFIX',
-        label: 'Stripe Payout Description Prefix',
-        type: 'text',
-        required: true,
-        tooltip: 'Prefix for payout descriptions in the sheet.',
-        scope: 'user' // Allowed scopes: 'user'
-    },
-    {
-        key: 'SUMMARY_EMAIL',
-        label: 'Summary Email',
-        type: 'email',
-        required: true,
-        tooltip: 'Email address to receive summary reports.',
-        scope: 'document' // Allowed scopes: 'user', 'document'
-    }
-    // Add more properties as needed
-];
-
 
 /**
  * Invokes a function by its name and function ID while ensuring the function runs within the global scope.
@@ -264,7 +228,7 @@ function sb_saveUserPropertiesForFunction(functionName, properties) {
  */
 function sb_saveConfigProperties(configData) {
     configData.forEach(({ key, value, scope }) => {
-        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === key);
+        const propertyDef = sidebar.ALLOWED_PROPERTIES.find(prop => prop.key === key);
 
         if (!propertyDef) {
             console.warn(`Attempt to set unauthorized property: ${key}`);
@@ -298,7 +262,7 @@ function sb_getProperty(propertyName) {
  * @returns {Array<Object>} - Array of property objects containing metadata and current values.
  */
 function sb_getConfigProperties() {
-    return ALLOWED_PROPERTIES.map(prop => ({
+    return sidebar.ALLOWED_PROPERTIES.map(prop => ({
         ...prop,
         value: sb_getProperty(prop.key) || ''
     }));
@@ -314,7 +278,7 @@ const ConfigManager = (() => {
      */
     const getProperty = (propertyName) => {
         // Find the property definition from ALLOWED_PROPERTIES
-        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
+        const propertyDef = sidebar.ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
         if (!propertyDef) {
             console.warn(`Property "${propertyName}" is not allowed.`);
             return null;
@@ -367,8 +331,8 @@ const ConfigManager = (() => {
      * @throws Will throw an error if the property is not allowed or scope is invalid.
      */
     const setProperty = (propertyName, value, scope = 'user') => {
-        // Find the property definition from ALLOWED_PROPERTIES
-        const propertyDef = ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
+        // Find the property definition from sidebar.ALLOWED_PROPERTIES
+        const propertyDef = sidebar.ALLOWED_PROPERTIES.find(prop => prop.key === propertyName);
         if (!propertyDef) {
             throw new Error(`Property "${propertyName}" is not allowed.`);
         }

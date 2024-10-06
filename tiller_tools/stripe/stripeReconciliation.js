@@ -10,7 +10,6 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
 
 
   // Initialize tracking variables
-  let rowsModified = [];    // Array to track modified or added rows
   let filesAdded = [];      // Array to track files added to Google Drive
   let urlsAccessed = [];    // Array to track URLs accessed during the script execution
 
@@ -43,8 +42,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
     let payoutsWithTransactions = []; // Initialize collection
 
     try {
-      sidebar.log("Starting to process Stripe payouts.");
-
+      
       // Ensure all required columns exist
       const dateColumnIndex = findColumnIndex(headers, "Date");
       const descriptionColumnIndex = findColumnIndex(headers, "Description");
@@ -67,21 +65,22 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
 
       // Parse start and end dates
       sidebar.log(`Parsing date range with startDateInput: ${startDateInput}, endDateInput: ${endDateInput}`);
+
       const { startDate, endDate } = parseDateRange(startDateInput, endDateInput);
 
-      sidebar.log(`Processing payouts from ${startDate ? startDate.toISOString().split('T')[0] : 'beginning'} to ${endDate ? endDate.toISOString().split('T')[0] : 'present'}.`);
+      sidebar.log(`Starting to process Stripe payouts for date range: ${startDate ? startDate.toISOString().split('T')[0] : 'earliest'} to ${endDate ? endDate.toISOString().split('T')[0] : 'latest'}`);
 
       // Filter payout rows from the sheet within the date range
       const payoutRows = filterStripePayoutRows(sheet, dateColumnIndex, descriptionColumnIndex, amountColumnIndex, startDate, endDate);
-      sidebar.log(`Found ${payoutRows.length} payout rows in the sheet within the date range.`);
+      sidebar.log(`Found ${payoutRows.length} payout rows in the sheet within the date range. First payout: Date=${payoutRows[0].date.toISOString().split('T')[0]}, Amount=${payoutRows[0].amount}, Description="${payoutRows[0].description}"`);
+
 
       // Fetch payouts from Stripe within the date range
       const stripePayouts = fetchStripePayouts(startDate, endDate);
-      sidebar.log(`Fetched ${stripePayouts.length} payouts from Stripe within the date range.`);
+      sidebar.log(`Fetched ${stripePayouts.length} payouts from Stripe API within the date range. First payout: ID=${stripePayouts[0].id}, Amount=${stripePayouts[0].amount / 100}, Status=${stripePayouts[0].status} | PayoutID: ${stripePayouts[0].id}`);
 
       // Map to store payoutId to payoutRow for easy access
       const payoutRowMap = new Map();
-
 
       // Prepare for batch fetching transactions
       let payoutIdsToProcess = [];
@@ -90,22 +89,32 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
       payoutRows.forEach(payoutRow => {
         const matchingPayout = findMatchingPayout(payoutRow, stripePayouts);
         if (matchingPayout) {
-          sidebar.log(`Found matching payout ID: ${matchingPayout.id} for row ${payoutRow.rowIndex}`);
+          sidebar.log(`Matched sheet payout (Date=${payoutRow.date.toISOString().split('T')[0]}, Amount=${payoutRow.amount}) with Stripe payout (ID=${matchingPayout.id}, Amount=${matchingPayout.amount / 100}, Arrival Date=${new Date(matchingPayout.arrival_date * 1000).toISOString().split('T')[0]}) | PayoutID: ${matchingPayout.id}`);
+          
           payoutRowMap.set(matchingPayout.id, {
             payoutRow: payoutRow,
             matchingPayout: matchingPayout
           });
           payoutIdsToProcess.push(matchingPayout.id);
         } else {
-          sidebar.log(`No matching payout found for row ${payoutRow.rowIndex}, Date: ${payoutRow.date}, Description: ${payoutRow.description}`);
+          sidebar.log(`No matching Stripe payout found for sheet row: Date=${payoutRow.date.toISOString().split('T')[0]}, Amount=${payoutRow.amount}, Description="${payoutRow.description}"`);
         }
       });
 
       // Fetch transactions for all payouts in parallel
       const payoutsTransactionsMap = fetchTransactionsForPayouts(payoutIdsToProcess);
 
-      // Process each payout's transactions
-      payoutIdsToProcess.forEach(payoutId => {
+      // Map payout IDs to their row indices
+      const payoutIdRowIndexArray = payoutIdsToProcess.map(payoutId => {
+        const { payoutRow } = payoutRowMap.get(payoutId);
+        return { payoutId: payoutId, rowIndex: payoutRow.rowIndex };
+      });
+
+      // Sort the array in reverse order of row indices
+      payoutIdRowIndexArray.sort((a, b) => b.rowIndex - a.rowIndex);
+
+      // Process the payouts in reverse order
+      payoutIdRowIndexArray.forEach( ({ payoutId }) => {
         const { payoutRow, matchingPayout } = payoutRowMap.get(payoutId);
         const transactions = payoutsTransactionsMap[payoutId];
         if (transactions) {
@@ -126,7 +135,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
     } catch (error) {
       // Enrich error messages with context
       sidebar.error(`Error in processStripePayouts: ${error.message}`);
-      Logger.log(`Error in processStripePayouts: ${error.message}`);
+      
       SpreadsheetApp.getUi().alert(`Error processing Stripe payouts: ${error.message}`);
     } finally {
       if (payoutsWithTransactions.length > 0) {
@@ -219,33 +228,37 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
    * @param {Date|null} endDate - The end date for filtering or null for no limit.
    * @returns {Array} - An array of payout row objects.
    */
-  const filterStripePayoutRows = (sheet, dateColumnIndex, descriptionColumnIndex, amountColumnIndex, startDate, endDate) => {
-    const data = sheet.getDataRange().getValues();
-    try {
-      return data.slice(1).reduce((acc, row, index) => {
-        const description = row[descriptionColumnIndex - 1];
-        const dateValue = row[dateColumnIndex - 1];
+const filterStripePayoutRows = (sheet, dateColumnIndex, descriptionColumnIndex, amountColumnIndex, startDate, endDate) => {
+  const data = sheet.getDataRange().getValues();
+  try {
+    const payoutRows = data.slice(1).reduce((acc, row, index) => {
+      const description = row[descriptionColumnIndex - 1];
+      const dateValue = row[dateColumnIndex - 1];
 
-        if (description && description.startsWith(STRIPE_PAYOUT_DESCRIPTION_PREFIX) && dateValue instanceof Date) {
-          const rowDate = new Date(dateValue);
-          rowDate.setHours(0, 0, 0, 0);
+      if (description && description.startsWith(STRIPE_PAYOUT_DESCRIPTION_PREFIX) && dateValue instanceof Date) {
+        const rowDate = new Date(dateValue);
+        rowDate.setHours(0, 0, 0, 0);
 
-          // Apply date filters
-          if ((!startDate || rowDate >= startDate) && (!endDate || rowDate <= endDate)) {
-            acc.push({
-              rowIndex: index + 2,
-              date: dateValue,
-              amount: row[amountColumnIndex - 1],
-              description: description
-            });
-          }
+        // Apply date filters
+        if ((!startDate || rowDate >= startDate) && (!endDate || rowDate <= endDate)) {
+          acc.push({
+            rowIndex: index + 2,
+            date: dateValue,
+            amount: row[amountColumnIndex - 1],
+            description: description
+          });
         }
-        return acc;
-      }, []);
-    } catch (error) {
-      throw new Error(`Error filtering payout rows: ${error.message}`);
-    }
-  };
+      }
+      return acc;
+    }, []);
+
+    // Sort payoutRows in reverse order of their row indices (from bottom to top)
+    return payoutRows.sort((a, b) => b.rowIndex - a.rowIndex);
+
+  } catch (error) {
+    throw new Error(`Error filtering payout rows: ${error.message}`);
+  }
+};
 
   /**
    * Fetches payouts from Stripe using the Stripe API, filtered by date range.
@@ -464,7 +477,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
    */
   const processPayoutTransactions = (sheet, payoutRow, payout, transactions, headers, columnIndices) => {
 
-    sidebar.log("Starting processing transactions") ;
+    sidebar.log(`Processing transactions for payout: Date=${payoutRow.date.toISOString().split('T')[0]}, Amount=${payoutRow.amount}, Description="${payoutRow.description}" | PayoutID: ${payout.id}`);
 
     if (!sheet || !payoutRow || !payout || !headers || !columnIndices || !transactions) {
       throw new Error("Invalid arguments provided to processPayoutTransactions.");
@@ -491,6 +504,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
 
       // Begin processing transactions
       for (let transaction of transactions) {
+
         if (transaction.status !== 'available') {
           continue; // Skip transactions that are not available
         }
@@ -528,7 +542,9 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
         }
 
         const transactionAmount = transaction.amount / 100 || 0; // Set amount to zero if undefined
-
+        
+        sidebar.log(`Processing transaction: ID=${transaction.id}, Type=${transaction.type}, Amount=${transactionAmount}, Description="${transaction.description}", Customer="${transaction.customer_name || 'N/A'}" | PayoutID: ${payout.id} | ChargeID: ${transaction.source}`);
+        
         let receiptUrl = null;
         let customerName = null;
         let reportingCategory = transaction.reporting_category || '';
@@ -601,7 +617,11 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
 
         if (transaction.fee_details && transaction.fee_details.length > 0) {
           for (let fee of transaction.fee_details) {
+
             const feeAmount = fee.amount / 100 || 0;
+            
+            sidebar.log(`Processing fee: Type=${fee.type}, Amount=${feeAmount}, Description="${fee.description}" | PayoutID: ${payout.id} | ChargeID: ${transaction.source}`);
+
             const feeRow = createFeeRow(  payoutRowData,
                                           fee,
                                           transaction,
@@ -632,8 +652,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
       if (Math.abs(totalProcessedAmount) > 0.01) {
         const errorMessage = `Total processed amount (${totalProcessedAmount.toFixed(2)}) does not match payout amount (${payoutRow.amount.toFixed(2)}). Transactions will not be inserted.`;
         sidebar.log(errorMessage);
-        Logger.log(errorMessage);
-
+        
         // Delete any files created during processing
         deleteFiles(filesCreated);
 
@@ -643,12 +662,40 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
         if (newRowsData.length > 0) {
           sheet.insertRowsAfter(payoutRow.rowIndex, newRowsData.length);
           sheet.getRange(payoutRow.rowIndex + 1, 1, newRowsData.length, headers.length).setValues(newRowsData);
-          sidebar.log(`Inserted ${newRowsData.length} new rows after row ${payoutRow.rowIndex}`);
-        }
 
-        // // Update the payout row's Amount to zero
-        // sheet.getRange(payoutRow.rowIndex, columnIndices.amount).setValue(0);
-        // sidebar.log(`Set payout row amount to zero for row ${payoutRow.rowIndex}`);
+          // Enhanced debugging log
+          sidebar.log(`Payout Processing Details:
+            - Payout Date: ${payoutRow.date instanceof Date ? payoutRow.date.toISOString() : 'Invalid Date'}
+            - Payout Amount: ${payoutRow.amount}
+            - Payout Description: ${payoutRow.description}
+            - Payout Row Index: ${payoutRow.rowIndex}
+            - Number of New Rows Inserted: ${newRowsData.length}
+            - New Rows Inserted After Row: ${payoutRow.rowIndex}
+            - First New Row Index: ${payoutRow.rowIndex + 1}
+            - Last New Row Index: ${payoutRow.rowIndex + newRowsData.length}
+            - Number of Transactions: ${transactions.length}
+            - Number of Fee Rows: ${newRowsData.length - transactions.length}
+          `);
+
+          // Log details of each new row
+          newRowsData.forEach((row, index) => {
+            sidebar.log(`  New Row ${index + 1}:
+              - Date: ${row[columnIndices.date - 1] instanceof Date ? row[columnIndices.date - 1].toISOString() : 'Invalid Date'}
+              - Amount: ${row[columnIndices.amount - 1]}
+              - Description: ${row[columnIndices.description - 1]}
+              - Category: ${row[columnIndices.category - 1] || 'N/A'}
+            `);
+          });
+        }
+        else
+        {
+          sidebar.log(`No new rows inserted for payout:
+            - Date: ${payoutRow.date instanceof Date ? payoutRow.date.toISOString() : 'Invalid Date'}
+            - Amount: ${payoutRow.amount}
+            - Description: ${payoutRow.description}
+            - Row Index: ${payoutRow.rowIndex}
+          `);
+        }
 
         sidebar.log(`Total processed amount matches the payout amount.`);
       }
@@ -656,7 +703,6 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
     } catch (error) {
       const errorMessage = `Error processing payout for row ${payoutRow.rowIndex}: ${error.message}`;
       sidebar.error(errorMessage);
-      Logger.log(errorMessage);
 
       // Delete any files created during processing
       deleteFiles(filesCreated);
@@ -681,6 +727,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
     if (!apiKey) throw new Error("Stripe API key not found in script properties.");
 
     const uniqueChargeIds = [...new Set(chargeIds)];
+
     const requests = uniqueChargeIds.map(chargeId => {
       const url = `https://api.stripe.com/v1/charges/${chargeId}`;
       urlsAccessed.push(url);
@@ -698,13 +745,19 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
     const chargesMap = {};
 
     try {
+      sidebar.log(`Fetching ${uniqueChargeIds.length} charges in parallel. First charge ID: ${uniqueChargeIds[0]}`);
+
       const responses = UrlFetchApp.fetchAll(requests);
 
       responses.forEach((response, index) => {
         const chargeId = uniqueChargeIds[index];
+        
         if (response.getResponseCode() === 200) {
           const chargeData = JSON.parse(response.getContentText());
           chargesMap[chargeId] = chargeData;
+          
+          sidebar.log(`Fetched charge: ID=${chargeId}, Amount=${chargeData.amount / 100}, Description="${chargeData.description}", Customer="${chargeData.customer || 'N/A'}" | ChargeID: ${chargeId}`);
+
         } else {
           sidebar.log(`Failed to fetch charge ${chargeId}: ${response.getContentText()}`);
         }
@@ -726,6 +779,8 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
    */
   const fetchAndSaveReceipts = (receiptUrls, transactions, filesCreated) => {
     const uniqueReceiptUrls = [...new Set(receiptUrls)];
+    
+    sidebar.log(`Fetching and saving ${uniqueReceiptUrls.length} receipts. First receipt URL: ${uniqueReceiptUrls[0]}`);
 
     const requests = uniqueReceiptUrls.map(receiptUrl => {
       urlsAccessed.push(receiptUrl);
@@ -770,7 +825,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
             transactionId: transaction.id,
             fileUrl: receiptDriveUrl,
           });
-          sidebar.log(`Saved receipt for transaction ID: ${transaction.id}, File URL: ${receiptDriveUrl}`);
+          sidebar.log(`Saved receipt: Transaction ID=${transaction.id}, Amount=${transaction.amount / 100}, Description="${transaction.description}", Customer="${transaction.customer_name || 'N/A'}", File URL=${receiptDriveUrl} | ChargeID: ${transaction.source}`);
 
         } else {
           sidebar.log(`Failed to fetch receipt from URL: ${receiptUrl}, Response Code: ${response.getResponseCode()}`);
@@ -829,7 +884,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
    * @param {Object} columnIndices - Object containing indices of required columns.
    * @param {Array} payoutsWithTransactions - Array of payouts and their associated transactions.
    */
-  const compileAndSendSummaryEmail = ( payoutsWithTransactions) => {
+  const compileAndSendSummaryEmail = ( payoutsWithTransactions ) => {
     const emailAddress = sb_getProperty('SUMMARY_EMAIL') || 'finance@fortifiedstrength.org';
     const subject = 'Stripe Updates to Transactions';
 
@@ -869,20 +924,6 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
 
     // Send the email
     MailApp.sendEmail(emailAddress, subject, summary);
-  };
-
-
-  /**
-   * Retrieves the current process ID from LOG_ID.
-   * @returns {string} - The current process ID.
-   * @throws Will throw an error if no process ID is available.
-   */
-  const getCurrentProcessId = () => {
-    if (typeof LOG_ID !== 'undefined' && LOG_ID.length > 0) {
-      return LOG_ID[LOG_ID.length - 1].id;
-    } else {
-      throw new Error('No process ID available.');
-    }
   };
 
   /**
@@ -1109,6 +1150,8 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
 
     // Append source ID from parent transaction
     description += ` | Source: ${parentTransaction.source}`;
+
+    // Row data updates
 
     rowData[columnIndices.description]  = description; // Set description for the fee
     rowData[columnIndices.date]         = new Date(parentTransaction.created * 1000); // Use the parent transaction's date

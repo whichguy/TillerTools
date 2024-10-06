@@ -1220,12 +1220,15 @@
                     const isLongMessage = message.length > MAX_MESSAGE_LENGTH;
                     const isTruncated = isLongMessage;  // Messages longer than 100 characters are truncated
 
+                    // Check if "Expand All" is checked
+                    const isExpandAllChecked = $('#expandAll').is(":checked");
+
                     // Construct the log message HTML
                     const listItem = `
                         <li class="list-group-item list-group-item-${type}" data-timestamp="${timestamp}">
-                            <div class="log-message ${isTruncated ? 'truncated' : ''}" role="button" aria-expanded="${!isTruncated ? 'true' : 'false'}" tabindex="0">
-                                ${message}  <!-- Allow message to wrap or be truncated based on length -->
-                                ${isTruncated ? `<span class="toggle-arrow" tabindex="-1" role="button" aria-label="Expand message"><i class="bi bi-chevron-right"></i></span>` : ''}
+                            <div class="log-message ${isTruncated && !isExpandAllChecked ? 'truncated' : 'expanded'}" role="button" aria-expanded="${isExpandAllChecked || !isTruncated ? 'true' : 'false'}" tabindex="0">
+                                ${message}
+                                ${isTruncated ? `<span class="toggle-arrow" tabindex="-1" role="button" aria-label="Expand message"><i class="bi bi-chevron-${isExpandAllChecked ? 'up' : 'right'}"></i></span>` : ''}
                             </div>
                             ${formattedTime ? `<div class="log-time">${formattedTime}</div>` : ''}
                         </li>

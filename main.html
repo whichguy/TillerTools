@@ -9,7 +9,7 @@
                     LogInterface.addButtonConfig({
                         label: 'Process Stripe Payouts',
                         preamble: 'Look through the payouts from stripe and expand the payout with the transactions associated with that payout. Note this will modify your sheet',
-                        functionName: 'processStripePayouts',
+                        functionName: 'tiller_tools_stripe_processStripePayouts',
                         groupLabel: 'Transactions',
                         args: [
                             { label: 'Start Date', type: 'date', defaultValue: new Date(new Date().setDate(new Date().getDate() - 7)), visible: true, tooltip: 'Select the start date for the operation' },
@@ -17,7 +17,7 @@
                         ]
                     });
 
-                // Initialize the LogInterface
+                    // Initialize the LogInterface
                     LogInterface.init();
                 } catch (error) {
                     console.error("Error during document ready:", error.message);

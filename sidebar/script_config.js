@@ -31,6 +31,21 @@ sidebar.ALLOWED_PROPERTIES = [
         required: true,
         tooltip: 'Email address to receive summary reports.',
         scope: 'document' // Allowed scopes: 'user', 'document'
+    },
+    {
+        key: 'STRIPE_INSTITUTION_NAME',
+        label: 'Institution name on the sheet',
+        type: 'text',
+        required: false,
+        tooltip: 'Institution name on the sheet.',
+        scope: 'user' // Allowed scopes: 'user', 'document'
+    },
+    {
+        key: 'STRIPE_PAYOUT_CATEGORY_LABEL',
+        label: 'Payout category label',
+        type: 'text',
+        required: false,
+        tooltip: 'Payout category label',
+        scope: 'user' // Allowed scopes: 'user', 'document'
     }
-    // Add more properties as needed
 ];

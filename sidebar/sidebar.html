@@ -393,13 +393,21 @@
             log = console.log,
             debug = console.log,
             error = console.log,
-            target = google.script.run,
+            run = google.script.run,
             defaultPollInterval = 1250
         ) => {
+
+            console.debug('createLogServer: Initializing with parameters:', { defaultPollInterval });
+
 
             // Validate that log, debug, and error functions are provided
             if (!log || !debug || !error) {
                 throw new Error('Log, debug, and error functions cannot be null.');
+            }
+
+            if (defaultPollInterval <= 0) {
+                console.debug('createLogServer: Error - Invalid polling interval:', defaultPollInterval);
+                throw new Error('Polling interval must be greater than zero.');
             }
 
             // Validate that polling interval is positive
@@ -407,14 +415,83 @@
                 throw new Error('Polling interval must be greater than zero.');
             }
 
-            // Configuration class to hold log functions
             class Config {
                 constructor(log, debug, error) {
-                    this.log = log;
-                    this.debug = debug;
-                    this.error = error;
+                    this.log = log || console.log;
+                    this.debug = debug || console.log;
+                    this.error = error || console.error;
+                    this.successHandlers = []; // Ensure this is always initialized as an array
+                    this.failureHandlers = [];
+                    this.userObj = null;
+                    this.proxy = null;
+                }
+
+                withSuccessHandler(handlerFunction ) {
+                  console.debug('Config: Adding success handler');
+                  if (typeof handlerFunction === 'function') {
+                      // Wrap the existing handlers
+                      this.successHandlers.push(handlerFunction);
+                  }
+                  else if (typeof handlerFunction !== 'function') {
+                    throw new TypeError('Success handler must be a function');
+                  }
+
+                  return this.proxy ; 
+                }
+
+                withFailureHandler(handlerFunction ) {
+                  console.debug('Config: Adding failure handler');
+                  if (typeof handlerFunction === 'function') {
+                      this.failureHandlers.push(handlerFunction);
+                  }
+                  else if (typeof handlerFunction !== 'function') {
+                    throw new TypeError('Failure handler must be a function');
+                  }
+                  return this.proxy ; 
+                }
+
+                withUserObject(obj ) {
+                  console.debug('Config: Setting user object', obj);
+                  this.userObj = obj ;
+
+                  return this.proxy ;
+                }
+
+                // Method to execute all success handlers in order
+                executeSuccessHandlers(result) {
+                    console.debug('Config: Executing success handlers. Count:', this.successHandlers.length);
+                    this.successHandlers.forEach(handler => {
+                        try {
+                            handler(result, this.userObj);
+                        } catch (err) {
+                            this.error(`Error in success handler: ${err.message}`);
+                        }
+                    });
+                    // Reset handlers after execution
+                    this.resetHandlers() ;
+                }
+
+                // Method to execute all failure handlers in order
+                executeFailureHandlers(error) {
+                    console.debug('Config: Executing failure handlers. Count:', this.failureHandlers.length);
+                    this.failureHandlers.forEach(handler => {
+                        try {
+                            handler(error, this.userObj );
+                        } catch (err) {
+                            this.error(`Error in failure handler: ${err.message}`);
+                        }
+                    });
+                    // Reset handlers after execution
+                    this.resetHandlers() ;
+                }
+
+                resetHandlers() {
+                  this.successHandlers = [];
+                  this.failureHandlers = [];
+                  this.userObj = null;
                 }
             }
+
 
             const configInstance = new Config(log, debug, error);
 
@@ -429,12 +506,14 @@
                     google.script.run
                         .withSuccessHandler(response => {
                             configInstance.debug(`client received: [${processId}] ${JSON.stringify(response)}`);
-                            if (response.messages && response.messages.length > 0) {
-                                response.messages.forEach(msg => {
-                                    if (msg) {
-                                        configInstance.log(msg);
-                                    }
-                                });
+                            if (response && response.messages && Array.isArray(response.messages)) {
+                              response.messages.forEach(msg => {
+                                if (msg) {
+                                  configInstance.log(msg);
+                                }
+                              });
+                            } else {
+                              configInstance.error(`Invalid response format for process ${processId}`);
                             }
                         })
                         .sb_getProcessStatus(processId);
@@ -443,9 +522,29 @@
 
             // Proxy handler to intercept function calls
             const handler = {
-                get: function (target, prop) {
+                get: function (target, prop, receiver) {
+                  console.debug(`Proxy handler: Accessing property "${prop}"`);
+
+                  if (prop === 'withSuccessHandler' || prop === 'withFailureHandler' || prop === 'withUserObject') {
+                      return function(...args) {
+                        console.debug(`handler: get: Calling ${prop} on configInstance`);
+                        
+                        // Call the method on configInstance, binding 'this' to configInstance
+                        configInstance[prop].apply(configInstance, args);
+
+                        // Return the proxy for chaining
+                        return receiver;
+                      };
+                  }
+                  else
+                  {
                     return function (...args) {
                         const processId = new Date().getTime().toString();
+
+                        // Check if the property is actually a function on the target
+                        if (typeof target[prop] !== 'function') {
+                          throw new Error(`Attempted to call ${prop} which is not a function on google.script.run`);
+                        }
 
                         // Start polling at the default interval
                         const pollInterval = setInterval(() => {
@@ -467,9 +566,11 @@
                         /**
                          * Handler for successful function invocation.
                          */
-                        const onSuccess = () => {
+                        const onSuccess = (result) => {
                             clearInterval(pollInterval);
-                            console.log(`${prop} completed successfully`);
+                            console.debug(`${prop} completed successfully`);
+                            configInstance.executeSuccessHandlers(result) ;
+
                             doOneTimePoll(10, processId);
                         };
 
@@ -480,9 +581,13 @@
                          */
                         const onError = (err) => {
                             clearInterval(pollInterval);
-                            console.log(`Error: ${prop}: ${err.message}` || 'An error occurred.');
+                            console.debug(`Error: ${prop}: ${err.message}` || 'An error occurred.');
+                            configInstance.executeFailureHandlers(err) ;
+
                             doOneTimePoll(10, processId);
                         };
+
+                        debugger ; 
 
                         // Invoke the actual server-side function with success and failure handlers
                         target
@@ -490,11 +595,14 @@
                             .withFailureHandler(onError)
                             .sb_invokeWithId(prop, processId, ...args);
                     }
+                  }
                 }
             };
 
+            configInstance.proxy = handler ;
+
             // Return the proxied target
-            return new Proxy(target, handler);
+            return new Proxy(run, handler);
         }
 
         /**
@@ -625,10 +733,10 @@
                     try {
                         // Iterate through each button configuration and load the properties for each function
                         for (const config of specificButtonConfigs) {
-                            console.log(`Loading config for function: ${config.functionName}`);
+                            console.debug(`Loading config for function: ${config.functionName}`);
                             await loadConfigForFunction(config.functionName, config.args); // Await the result for each function
                         }
-                        console.log("Configuration load completed.");
+                        console.debug("Configuration load completed.");
                     } catch (error) {
                         console.error("Error loading configurations:", error.message);
                         alert("An error occurred while loading configurations. Please check the console for more details.");
@@ -661,7 +769,7 @@
                             });
                             return properties; // Return the properties after successful population
                         } else {
-                            console.log("No user properties found for function:", functionName);
+                            console.debug("No user properties found for function:", functionName);
                             return null; // Return null if no properties found
                         }
                     } catch (err) {
@@ -959,13 +1067,13 @@
                                 return;
                             }
 
-                            console.log(`Checking field: ${arg.label}`);  // Log field being checked
-                            console.log(`Input value: ${input.val()}`);  // Log the actual input value
+                            console.debug(`Checking field: ${arg.label}`);  // Log field being checked
+                            console.debug(`Input value: ${input.val()}`);  // Log the actual input value
 
                             // Check for required fields and specific handling for 'date' type fields
                             if (arg.required && (!input.val() || (input[0].type === 'date' && input[0].value === ""))) {
                                 missingFields.push(arg.label);
-                                console.log(`${arg.label} is missing or invalid.`);  // Log missing/invalid fields
+                                console.debug(`${arg.label} is missing or invalid.`);  // Log missing/invalid fields
 
                                 // Highlight missing field label
                                 label.css('color', 'red');
@@ -975,14 +1083,14 @@
                                     firstMissingField = input;
                                 }
                             } else {
-                                console.log(`${arg.label} is filled correctly.`);  // Log valid fields
+                                console.debug(`${arg.label} is filled correctly.`);  // Log valid fields
                                 // Reset label color if field is filled
                                 label.css('color', '');
                             }
                         });
 
                         if (missingFields.length > 0) {
-                            console.log(`Missing fields: ${missingFields.join(', ')}`);  // Log all missing fields
+                            console.debug(`Missing fields: ${missingFields.join(', ')}`);  // Log all missing fields
 
                             // Show modal with missing fields
                             $('#missingFieldsList').empty();
@@ -1012,15 +1120,32 @@
                             }
                         });
 
-                        console.log(`Invoking ${functionName} with arguments:`, allArgs);
+                        console.debug(`Creating spinner button`);
+                        
+                        // **Add Spinner Next to Button**
+                        const spinner = $('<span class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>');
+                        button.prop('disabled', true); // Disable the button to prevent multiple clicks
+                        button.append(spinner);
+
+                        console.debug(`Invoking ${functionName} with arguments:`, allArgs);
 
                         // Invoke the server-side function with all arguments
-                        server[functionName](...allArgs);
+                        server
+                          .withSuccessHandler( (result) => {
+                              // Success handler
+                              spinner.remove();
+                              button.prop('disabled', false); // Re-enable the button
+                          })
+                          .withFailureHandler((error) => {
+                              // Failure handler
+                              spinner.remove();
+                              button.prop('disabled', false); // Re-enable the button
+                              console.error(`Error invoking ${functionName}:`, error);
+                              alert(`An error occurred while processing your request: ${error.message}`);
+                          })[functionName](...allArgs) ;
 
-                        // Save the user properties for visible arguments only
-                        saveUserPropertiesForFunction(functionName, config.args);
                     } catch (error) {
-                        console.error("Error handling button click:", error.message);
+                        console.error(`Error handling button click: ${error.message} ${error.stack}`);
                         alert("An error occurred while processing your request. Please check the console for more details.");
                     }
                 }

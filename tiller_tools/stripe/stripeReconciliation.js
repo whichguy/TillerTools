@@ -3,9 +3,10 @@ var tiller_tools = tiller_tools || {};
 
 tiller_tools.stripe = tiller_tools.stripe || (function () {
   // Constants
-  const STRIPE_PAYOUT_DESCRIPTION_PREFIX  = sb_getProperty('STRIPE_PAYOUT_DESCRIPTION_PREFIX') || "Orig Co Name:stripe Orig ID:x8598";
-  const STRIPE_INSTITUTION_NAME           = sb_getProperty('STRIPE_INSTITUTION_NAME') || "Stripe";
-  const STRIPE_PAYOUT_CATEGORY_LABEL      = sb_getProperty('STRIPE_PAYOUT_CATEGORY_LABEL') || "Bank Account transfer";
+  const STRIPE_PAYOUT_DESCRIPTION_PREFIX  = sb_getProperty('STRIPE_PAYOUT_DESCRIPTION_PREFIX')  || "Orig Co Name:stripe Orig ID:x8598";
+  const STRIPE_INSTITUTION_NAME           = sb_getProperty('STRIPE_INSTITUTION_NAME')           || "Stripe";
+  const STRIPE_PAYOUT_CATEGORY_LABEL      = sb_getProperty('STRIPE_PAYOUT_CATEGORY_LABEL')      || "Bank Account transfer";
+  const STRIPE_FEE_CATEGORY_LABEL         = sb_getProperty('STRIPE_FEE_CATEGORY_LABEL')         || "Finance Fee";
 
 
   // Initialize tracking variables
@@ -582,7 +583,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
         const stripeAccountNumber = payout.destination || '';
 
         // Determine the category
-        const category = transaction.reporting_category === 'payout' ? STRIPE_PAYOUT_CATEGORY_LABEL : (transaction.reporting_category || '');
+        const category = transaction.reporting_category === 'payout' ? STRIPE_PAYOUT_CATEGORY_LABEL : (payoutRowData[currentColumnIndices.category] || '');
 
         // Create transaction row
         const transactionRow = createTransactionRow(  payoutRowData,
@@ -1042,18 +1043,20 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
   rowData[columnIndices.amount] = transactionAmount; // Set the transaction amount
 
   // Build the description
-  let description = `${transaction.reporting_category}: ${transaction.description} (${transaction.type})`;
-
-  // Append source ID
-  description += ` | Source: ${transaction.source}`;
+  let description = `${transaction.reporting_category}:` ; 
 
   // Append customer_name if it exists
   if (transaction.customer_name) {
     description += ` | Customer: ${transaction.customer_name}`;
   }
 
+  description +=  ` | ${transaction.type}: ${transaction.description}`;
+
   // Append the original payout description
   description += ` | ${originalPayoutDescription}`;
+
+  // Append source ID
+  description += ` | Source: ${transaction.source}`;
 
   rowData[columnIndices.description] = description; // Set description
   rowData[columnIndices.date] = new Date(transaction.created * 1000); // Set the transaction date
@@ -1092,23 +1095,25 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
     rowData[columnIndices.amount] = -feeAmount; // Set the fee amount as a negative value
 
     // Build the description
-    let description = `${parentTransaction.reporting_category}: ${fee.description} (${fee.type})`;
-
-    // Append source ID from parent transaction
-    description += ` | Source: ${parentTransaction.source}`;
+    let description = `${parentTransaction.reporting_category}:`;
 
     // Append customer_name if it exists in parentTransaction
     if (parentTransaction.customer_name) {
       description += ` | Customer: ${parentTransaction.customer_name}`;
     }
 
+    description +=  ` | ${fee.type}}: ${fee.description}`;
+
     // Append the original payout description
     description += ` | ${originalPayoutDescription}`;
 
-    rowData[columnIndices.description] = description; // Set description for the fee
-    rowData[columnIndices.date] = new Date(parentTransaction.created * 1000); // Use the parent transaction's date
-    rowData[columnIndices.receiptUrl] = receiptDriveUrl || ''; // Set the receipt URL
-    rowData[columnIndices.category]   = category ;
+    // Append source ID from parent transaction
+    description += ` | Source: ${parentTransaction.source}`;
+
+    rowData[columnIndices.description]  = description; // Set description for the fee
+    rowData[columnIndices.date]         = new Date(parentTransaction.created * 1000); // Use the parent transaction's date
+    rowData[columnIndices.receiptUrl]   = receiptDriveUrl || ''; // Set the receipt URL
+    rowData[columnIndices.category]     = STRIPE_FEE_CATEGORY_LABEL || category ;
 
     // Set institution and account details
     if (columnIndices.institution !== undefined) {

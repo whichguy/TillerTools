@@ -46,6 +46,16 @@ sidebar.ALLOWED_PROPERTIES = [
         type: 'text',
         required: false,
         tooltip: 'Payout category label',
-        scope: 'user' // Allowed scopes: 'user', 'document'
+        scope: 'document' // Allowed scopes: 'user', 'document'
+    },
+    {
+        key: 'STRIPE_FEE_CATEGORY_LABEL',
+        label: 'Fee category label',
+        type: 'text',
+        required: false,
+        tooltip: 'Fee category label',
+        scope: 'document' // Allowed scopes: 'user', 'document'
     }
+
+    
 ];

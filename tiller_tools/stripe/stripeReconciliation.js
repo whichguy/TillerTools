@@ -7,6 +7,7 @@ tiller_tools.stripe = tiller_tools.stripe || (function () {
   const STRIPE_INSTITUTION_NAME           = sb_getProperty('STRIPE_INSTITUTION_NAME')           || "Stripe";
   const STRIPE_PAYOUT_CATEGORY_LABEL      = sb_getProperty('STRIPE_PAYOUT_CATEGORY_LABEL')      || "Bank Account transfer";
   const STRIPE_FEE_CATEGORY_LABEL         = sb_getProperty('STRIPE_FEE_CATEGORY_LABEL')         || "Finance Fee";
+  const STRIPE_ACCOUNT_NAME               = sb_getProperty('STRIPE_ACCOUNT_NAME')               || "Stripe";
 
 
   // Initialize tracking variables

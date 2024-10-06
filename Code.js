@@ -118,21 +118,6 @@ function GPT_INVOICE(input, mimeType) {
   return JSON.parse( toReturn ) ;
 }
 
-/**
- * Summarzies the given paragraph. It provides from 3-5 bullet points
- *
- * @param {String} input The value to summarize.
- * @return summarize Text.
- * @customfunction
- */
-function GPT_SUMMARY(input) {
-  logMessage(input);
-  const systemContent = "Summarize the given text. Provide atleast 3 and atmost 5 bullet points.";
-  return Array.isArray(input) ?
-    input.flat().map(text => fetchData(systemContent, text)) :
-    fetchData(systemContent, input);
-
-}
 
 function TEST()
 {

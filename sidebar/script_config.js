@@ -55,6 +55,14 @@ sidebar.ALLOWED_PROPERTIES = [
         required: false,
         tooltip: 'Fee category label',
         scope: 'document' // Allowed scopes: 'user', 'document'
+    },
+    {
+        key: 'STRIPE_ACCOUNT_NAME',
+        label: 'Account name for stripe transactions',
+        type: 'text',
+        required: false,
+        tooltip: 'In the sheet, this will be the name used for the Account (not the Account #) that will be filled in for each transaction from Stripe',
+        scope: 'document' // Allowed scopes: 'user', 'document'
     }
 
     

@@ -3,7 +3,7 @@ const BASE_URL = "https://api.openai.com/v1/chat/completions";
 
 function fetchData(systemContent, userContent, model = "gpt-3.5-turbo-16k") {
 
-  const CHAT_GPT_API_KEY = "" ;
+  const CHAT_GPT_API_KEY = null ;
 
   try {
     const headers = {

@@ -1047,7 +1047,7 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
 
   // Append customer_name if it exists
   if (transaction.customer_name) {
-    description += ` | Customer: ${transaction.customer_name}`;
+    description += ` Customer: ${transaction.customer_name}`;
   }
 
   description +=  ` | ${transaction.type}: ${transaction.description}`;
@@ -1073,7 +1073,7 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
     rowData[columnIndices.accountId] = ''; // Set to empty string as requested
   }
   if (columnIndices.category !== undefined) {
-    rowData[columnIndices.category] = category;
+    rowData[columnIndices.category] = (transaction.reporting_category == "fee") ? STRIPE_FEE_CATEGORY_LABEL : category ;
   }
 
   return rowData;
@@ -1099,10 +1099,10 @@ const createTransactionRow = (baseRowData, transaction, columnIndices, originalP
 
     // Append customer_name if it exists in parentTransaction
     if (parentTransaction.customer_name) {
-      description += ` | Customer: ${parentTransaction.customer_name}`;
+      description += ` Customer: ${parentTransaction.customer_name}`;
     }
 
-    description +=  ` | ${fee.type}}: ${fee.description}`;
+    description +=  ` | ${fee.type}: ${fee.description}`;
 
     // Append the original payout description
     description += ` | ${originalPayoutDescription}`;
